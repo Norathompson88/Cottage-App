@@ -5,24 +5,431 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Cottage</title>
 <style>
+  :root {
+    --bg: #e8dcc8;
+    --card: #fffaf2;
+    --ink: #4a3f35;
+    --accent: #7a9e7e;
+    --accent-dark: #5c7d60;
+    --coin: #d4a017;
+    --water: #6fa8c4;
+    --food: #c47a4f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0;
-    height: 100%;
-    background: #e8dcc8;
-    font-family: -apple-system, sans-serif;
+    min-height: 100%;
+    background: var(--bg);
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--ink);
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: env(safe-area-inset-top, 20px) 16px 40px;
+  }
+  header {
+    text-align: center;
+    padding: 16px 0 8px;
+  }
+  header h1 { margin: 0; font-size: 1.4rem; }
+  .coins {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--card);
+    border-radius: 20px;
+    padding: 6px 14px;
+    margin-top: 8px;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .coins .dot { color: var(--coin); font-size: 1.1rem; }
+
+  .pet-card {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 20px;
+    text-align: center;
+    margin: 16px 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .pet-emoji { font-size: 4rem; }
+  .pet-msg { margin-top: 6px; font-size: 0.95rem; color: var(--ink); opacity: 0.85; }
+  .pet-status {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 10px;
+    font-size: 0.85rem;
+  }
+  .pet-status span { opacity: 0.6; }
+  .pet-status span.active { opacity: 1; font-weight: 600; }
+
+  section { margin-top: 22px; }
+  section h2 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    margin: 0 0 8px 4px;
+  }
+
+  .task {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .task-row {
     display: flex;
     align-items: center;
-    justify-content: center;
-    text-align: center;
-    color: #4a3f35;
+    gap: 12px;
   }
-  h1 { font-size: 1.5rem; }
+  .checkbox {
+    width: 26px; height: 26px;
+    border-radius: 50%;
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.9rem;
+  }
+  .checkbox.done { background: var(--accent); color: white; }
+  .task-name { flex: 1; font-size: 1rem; }
+  .task-name.done { text-decoration: line-through; opacity: 0.5; }
+  .task-reward { font-size: 0.8rem; opacity: 0.55; }
+
+  .progress-wrap { margin-top: 10px; }
+  .progress-bar-bg {
+    background: #eee2cf;
+    border-radius: 8px;
+    height: 10px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    border-radius: 8px;
+    transition: width 0.3s ease;
+  }
+  .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-top: 4px;
+  }
+  .quick-add {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+  }
+  .quick-add button {
+    border: none;
+    background: var(--accent);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+  }
+  .quick-add input {
+    width: 60px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 6px 8px;
+    font-size: 0.85rem;
+  }
+  .quick-add .custom-add { display: flex; gap: 4px; align-items: center; }
+
+  .manage-toggle {
+    text-align: center;
+    margin-top: 24px;
+    font-size: 0.85rem;
+    opacity: 0.6;
+    text-decoration: underline;
+  }
+  .manage {
+    display: none;
+    margin-top: 12px;
+  }
+  .manage.open { display: block; }
+  .manage-item {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+  }
+  .manage-item input[type=text] { flex: 1; border: 1px solid #ddd; border-radius: 6px; padding: 4px 6px; }
+  .manage-item input[type=number] { width: 55px; border: 1px solid #ddd; border-radius: 6px; padding: 4px 6px; }
+  .manage-item button.del { border: none; background: #d9776e; color: white; border-radius: 6px; padding: 4px 8px; }
+  .add-task-form {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 10px;
+    font-size: 0.85rem;
+  }
+  .add-task-form input, .add-task-form select {
+    width: 100%;
+    margin-top: 6px;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+  .add-task-form button {
+    margin-top: 10px;
+    width: 100%;
+    border: none;
+    background: var(--accent-dark);
+    color: white;
+    padding: 10px;
+    border-radius: 8px;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
-  <div>
-    <h1>🏡 The cottage is live.</h1>
-    <p>Pipeline confirmed — next step is the real task list.</p>
+<div class="wrap">
+  <header>
+    <h1>🏡 The Cottage</h1>
+    <div class="coins"><span class="dot">●</span><span id="coinCount">0</span> coins</div>
+  </header>
+
+  <div class="pet-card">
+    <div class="pet-emoji" id="petEmoji">🐶</div>
+    <div class="pet-msg" id="petMsg">Waiting for breakfast...</div>
+    <div class="pet-status">
+      <span id="foodStatus">🍖 Not fed</span>
+      <span id="waterStatus">💧 Not watered</span>
+    </div>
   </div>
+
+  <section>
+    <h2>Priority — feeds & waters your pet</h2>
+    <div id="priorityTasks"></div>
+  </section>
+
+  <section>
+    <h2>Other habits — earn coins</h2>
+    <div id="coinTasks"></div>
+  </section>
+
+  <div class="manage-toggle" id="manageToggle">Manage tasks</div>
+  <div class="manage" id="manageSection">
+    <div id="manageList"></div>
+    <div class="add-task-form">
+      <strong>Add a coin task</strong>
+      <input type="text" id="newTaskName" placeholder="Task name">
+      <input type="number" id="newTaskCoins" placeholder="Coins earned">
+      <button id="addTaskBtn">Add task</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'cottageState';
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
+}
+
+function defaultState() {
+  return {
+    date: todayStr(),
+    coins: 0,
+    tasks: [
+      { id: 'protein', name: 'Protein', role: 'food', type: 'progress', target: 100, unit: 'g', current: 0, done: false, steps: [10, 25] },
+      { id: 'water', name: 'Water', role: 'water', type: 'progress', target: 80, unit: 'oz', current: 0, done: false, steps: [8, 16] },
+      { id: 'supplements', name: 'Take supplements', role: 'coin', type: 'checkbox', coinValue: 5, done: false },
+      { id: 'workout', name: 'Workout', role: 'coin', type: 'checkbox', coinValue: 10, done: false },
+      { id: 'reading', name: 'Read 30 minutes', role: 'coin', type: 'checkbox', coinValue: 10, done: false }
+    ]
+  };
+}
+
+function loadState() {
+  let raw = localStorage.getItem(STORAGE_KEY);
+  let state = raw ? JSON.parse(raw) : defaultState();
+  if (state.date !== todayStr()) {
+    // new day: reset task progress, keep coins
+    state.date = todayStr();
+    state.tasks.forEach(t => {
+      t.done = false;
+      if (t.type === 'progress') t.current = 0;
+    });
+  }
+  return state;
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = loadState();
+saveState();
+
+function render() {
+  document.getElementById('coinCount').textContent = state.coins;
+
+  const foodTask = state.tasks.find(t => t.role === 'food');
+  const waterTask = state.tasks.find(t => t.role === 'water');
+  const fed = foodTask ? foodTask.done : false;
+  const watered = waterTask ? waterTask.done : false;
+
+  document.getElementById('foodStatus').textContent = fed ? '🍖 Fed' : '🍖 Not fed';
+  document.getElementById('foodStatus').className = fed ? 'active' : '';
+  document.getElementById('waterStatus').textContent = watered ? '💧 Watered' : '💧 Not watered';
+  document.getElementById('waterStatus').className = watered ? 'active' : '';
+
+  const petEmoji = document.getElementById('petEmoji');
+  const petMsg = document.getElementById('petMsg');
+  if (fed && watered) {
+    petEmoji.textContent = '🐶💛';
+    petMsg.textContent = 'Buddy is happy, full, and hydrated!';
+  } else if (fed || watered) {
+    petEmoji.textContent = '🐶';
+    petMsg.textContent = fed ? 'Buddy is fed, but still thirsty.' : 'Buddy had water, but is still hungry.';
+  } else {
+    petEmoji.textContent = '🐶';
+    petMsg.textContent = 'Waiting for breakfast...';
+  }
+
+  const priorityEl = document.getElementById('priorityTasks');
+  const coinEl = document.getElementById('coinTasks');
+  priorityEl.innerHTML = '';
+  coinEl.innerHTML = '';
+
+  state.tasks.forEach(task => {
+    const card = document.createElement('div');
+    card.className = 'task';
+
+    if (task.type === 'checkbox') {
+      card.innerHTML = `
+        <div class="task-row">
+          <div class="checkbox ${task.done ? 'done' : ''}" data-id="${task.id}">${task.done ? '✓' : ''}</div>
+          <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
+          <div class="task-reward">+${task.coinValue}</div>
+        </div>`;
+      card.querySelector('.checkbox').addEventListener('click', () => toggleCheckbox(task.id));
+    } else {
+      const pct = Math.min(100, Math.round((task.current / task.target) * 100));
+      const barColor = task.role === 'water' ? 'var(--water)' : 'var(--food)';
+      card.innerHTML = `
+        <div class="task-row">
+          <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
+          <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
+        </div>
+        <div class="progress-wrap">
+          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%; background:${barColor}"></div></div>
+          <div class="progress-label"><span>${task.current}${task.unit}</span><span>${task.target}${task.unit} goal</span></div>
+          <div class="quick-add">
+            <button data-id="${task.id}" data-amt="${task.steps[0]}">+${task.steps[0]}${task.unit}</button>
+            <button data-id="${task.id}" data-amt="${task.steps[1]}">+${task.steps[1]}${task.unit}</button>
+            <span class="custom-add">
+              <input type="number" placeholder="#" id="custom-${task.id}">
+              <button data-custom="${task.id}">Add</button>
+            </span>
+          </div>
+        </div>`;
+      card.querySelectorAll('button[data-amt]').forEach(btn => {
+        btn.addEventListener('click', () => addProgress(task.id, parseFloat(btn.dataset.amt)));
+      });
+      card.querySelector('button[data-custom]').addEventListener('click', () => {
+        const input = document.getElementById('custom-' + task.id);
+        const val = parseFloat(input.value);
+        if (!isNaN(val) && val > 0) { addProgress(task.id, val); input.value = ''; }
+      });
+    }
+
+    if (task.role === 'coin') coinEl.appendChild(card);
+    else priorityEl.appendChild(card);
+  });
+
+  renderManage();
+}
+
+function toggleCheckbox(id) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task) return;
+  task.done = !task.done;
+  state.coins += task.done ? task.coinValue : -task.coinValue;
+  saveState();
+  render();
+}
+
+function addProgress(id, amt) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task) return;
+  task.current = Math.max(0, task.current + amt);
+  const wasDone = task.done;
+  task.done = task.current >= task.target;
+  saveState();
+  render();
+}
+
+function renderManage() {
+  const list = document.getElementById('manageList');
+  list.innerHTML = '';
+  state.tasks.forEach(task => {
+    const row = document.createElement('div');
+    row.className = 'manage-item';
+    if (task.type === 'checkbox') {
+      row.innerHTML = `
+        <input type="text" value="${task.name}" data-field="name" data-id="${task.id}">
+        <input type="number" value="${task.coinValue}" data-field="coinValue" data-id="${task.id}">
+        <button class="del" data-del="${task.id}">✕</button>`;
+    } else {
+      row.innerHTML = `
+        <input type="text" value="${task.name}" data-field="name" data-id="${task.id}">
+        <input type="number" value="${task.target}" data-field="target" data-id="${task.id}">
+        <span>${task.unit}</span>`;
+    }
+    list.appendChild(row);
+  });
+
+  list.querySelectorAll('input[data-field]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const task = state.tasks.find(t => t.id === inp.dataset.id);
+      const field = inp.dataset.field;
+      task[field] = field === 'name' ? inp.value : parseFloat(inp.value);
+      saveState();
+      render();
+    });
+  });
+  list.querySelectorAll('button[data-del]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.tasks = state.tasks.filter(t => t.id !== btn.dataset.del);
+      saveState();
+      render();
+    });
+  });
+}
+
+document.getElementById('manageToggle').addEventListener('click', () => {
+  document.getElementById('manageSection').classList.toggle('open');
+});
+
+document.getElementById('addTaskBtn').addEventListener('click', () => {
+  const name = document.getElementById('newTaskName').value.trim();
+  const coins = parseFloat(document.getElementById('newTaskCoins').value);
+  if (!name || isNaN(coins)) return;
+  state.tasks.push({
+    id: 'task-' + Date.now(),
+    name, role: 'coin', type: 'checkbox', coinValue: coins, done: false
+  });
+  document.getElementById('newTaskName').value = '';
+  document.getElementById('newTaskCoins').value = '';
+  saveState();
+  render();
+});
+
+render();
+</script>
 </body>
 </html>
