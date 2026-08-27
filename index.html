@@ -65,6 +65,39 @@
   }
   .pet-status span { opacity: 0.6; }
   .pet-status span.active { opacity: 1; font-weight: 600; }
+  .owned-items {
+    margin-top: 12px;
+    font-size: 1.4rem;
+    letter-spacing: 6px;
+  }
+
+  .shop-item {
+    background: var(--card);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  }
+  .shop-item .emoji { font-size: 1.6rem; }
+  .shop-item .info { flex: 1; }
+  .shop-item .info .name { font-size: 0.95rem; }
+  .shop-item .info .cost { font-size: 0.8rem; opacity: 0.55; }
+  .shop-item button {
+    border: none;
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: var(--accent-dark);
+    color: white;
+  }
+  .shop-item button:disabled {
+    background: #ddd;
+    color: #999;
+  }
 
   section { margin-top: 22px; }
   section h2 {
@@ -207,6 +240,7 @@
       <span id="foodStatus">🍖 Not fed</span>
       <span id="waterStatus">💧 Not watered</span>
     </div>
+    <div class="owned-items" id="ownedItems"></div>
   </div>
 
   <section>
@@ -217,6 +251,11 @@
   <section>
     <h2>Other habits — earn coins</h2>
     <div id="coinTasks"></div>
+  </section>
+
+  <section>
+    <h2>Shop</h2>
+    <div id="shopItems"></div>
   </section>
 
   <div class="manage-toggle" id="manageToggle">Manage tasks</div>
@@ -240,7 +279,7 @@ function todayStr() {
 }
 
 const FEED_THRESHOLD = 25;   // grams of protein that counts as "a feeding"
-const WATER_THRESHOLD = 12;  // oz of water that counts as "a watering"
+const WATER_THRESHOLD = 13.3; // oz of water that counts as "a watering" (80oz goal / 6 waterings)
 const FEED_DECAY_MS = 3.5 * 60 * 60 * 1000;      // hungry again after 3.5 hours (25g every 3.5h ≈ 100g/day)
 const WATER_DECAY_MS = (14/6) * 60 * 60 * 1000;  // thirsty again after 2h20m (6 waterings across a 14-hr day)
 
@@ -260,9 +299,18 @@ function defaultState() {
       feedTime: null,   // timestamp of last feeding
       waterPending: 0,
       waterTime: null
-    }
+    },
+    owned: []
   };
 }
+
+const SHOP_ITEMS = [
+  { id: 'bed', name: 'Cozy pet bed', cost: 40, emoji: '🛏️' },
+  { id: 'rug', name: 'Woven rug', cost: 25, emoji: '🧺' },
+  { id: 'plant', name: 'Potted plant', cost: 20, emoji: '🪴' },
+  { id: 'lamp', name: 'Warm lamp', cost: 30, emoji: '💡' },
+  { id: 'toy', name: 'Squeaky toy', cost: 15, emoji: '🎾' }
+];
 
 function loadState() {
   let raw = localStorage.getItem(STORAGE_KEY);
@@ -270,6 +318,7 @@ function loadState() {
   if (!state.pet) {
     state.pet = { feedPending: 0, feedTime: null, waterPending: 0, waterTime: null };
   }
+  if (!state.owned) state.owned = [];
   if (state.date !== todayStr()) {
     // new day: reset daily goal progress and coin tasks, keep coins
     // (pet hunger/thirst is NOT reset here — it runs on real elapsed time, not calendar days)
@@ -330,6 +379,11 @@ function render() {
     petMsg.textContent = 'Buddy is hungry and thirsty — time for a meal?';
   }
 
+  const ownedEl = document.getElementById('ownedItems');
+  ownedEl.textContent = state.owned.map(id => SHOP_ITEMS.find(i => i.id === id)?.emoji).filter(Boolean).join(' ');
+
+  renderShop();
+
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
   priorityEl.innerHTML = '';
@@ -382,6 +436,37 @@ function render() {
   });
 
   renderManage();
+}
+
+function renderShop() {
+  const shopEl = document.getElementById('shopItems');
+  shopEl.innerHTML = '';
+  SHOP_ITEMS.forEach(item => {
+    const owned = state.owned.includes(item.id);
+    const affordable = state.coins >= item.cost;
+    const row = document.createElement('div');
+    row.className = 'shop-item';
+    row.innerHTML = `
+      <div class="emoji">${item.emoji}</div>
+      <div class="info">
+        <div class="name">${item.name}</div>
+        <div class="cost">${owned ? 'Owned' : item.cost + ' coins'}</div>
+      </div>
+      <button ${owned || !affordable ? 'disabled' : ''} data-buy="${item.id}">${owned ? '✓' : 'Buy'}</button>`;
+    shopEl.appendChild(row);
+  });
+  shopEl.querySelectorAll('button[data-buy]').forEach(btn => {
+    btn.addEventListener('click', () => buyItem(btn.dataset.buy));
+  });
+}
+
+function buyItem(id) {
+  const item = SHOP_ITEMS.find(i => i.id === id);
+  if (!item || state.owned.includes(id) || state.coins < item.cost) return;
+  state.coins -= item.cost;
+  state.owned.push(id);
+  saveState();
+  render();
 }
 
 function toggleCheckbox(id) {
