@@ -239,6 +239,11 @@ function todayStr() {
   return d.getFullYear() + '-' + (d.getMonth()+1) + '-' + d.getDate();
 }
 
+const FEED_THRESHOLD = 25;   // grams of protein that counts as "a feeding"
+const WATER_THRESHOLD = 12;  // oz of water that counts as "a watering"
+const FEED_DECAY_MS = 3.5 * 60 * 60 * 1000;      // hungry again after 3.5 hours (25g every 3.5h ≈ 100g/day)
+const WATER_DECAY_MS = (14/6) * 60 * 60 * 1000;  // thirsty again after 2h20m (6 waterings across a 14-hr day)
+
 function defaultState() {
   return {
     date: todayStr(),
@@ -249,15 +254,25 @@ function defaultState() {
       { id: 'supplements', name: 'Take supplements', role: 'coin', type: 'checkbox', coinValue: 5, done: false },
       { id: 'workout', name: 'Workout', role: 'coin', type: 'checkbox', coinValue: 10, done: false },
       { id: 'reading', name: 'Read 30 minutes', role: 'coin', type: 'checkbox', coinValue: 10, done: false }
-    ]
+    ],
+    pet: {
+      feedPending: 0,   // grams logged since the last feeding was triggered
+      feedTime: null,   // timestamp of last feeding
+      waterPending: 0,
+      waterTime: null
+    }
   };
 }
 
 function loadState() {
   let raw = localStorage.getItem(STORAGE_KEY);
   let state = raw ? JSON.parse(raw) : defaultState();
+  if (!state.pet) {
+    state.pet = { feedPending: 0, feedTime: null, waterPending: 0, waterTime: null };
+  }
   if (state.date !== todayStr()) {
-    // new day: reset task progress, keep coins
+    // new day: reset daily goal progress and coin tasks, keep coins
+    // (pet hunger/thirst is NOT reset here — it runs on real elapsed time, not calendar days)
     state.date = todayStr();
     state.tasks.forEach(t => {
       t.done = false;
@@ -265,6 +280,20 @@ function loadState() {
     });
   }
   return state;
+}
+
+function isFed() {
+  return state.pet.feedTime && (Date.now() - state.pet.feedTime) < FEED_DECAY_MS;
+}
+function isWatered() {
+  return state.pet.waterTime && (Date.now() - state.pet.waterTime) < WATER_DECAY_MS;
+}
+function timeLeft(sinceTime, decayMs) {
+  const remainingMs = decayMs - (Date.now() - sinceTime);
+  if (remainingMs <= 0) return null;
+  const h = Math.floor(remainingMs / 3600000);
+  const m = Math.floor((remainingMs % 3600000) / 60000);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 function saveState() {
@@ -277,14 +306,15 @@ saveState();
 function render() {
   document.getElementById('coinCount').textContent = state.coins;
 
-  const foodTask = state.tasks.find(t => t.role === 'food');
-  const waterTask = state.tasks.find(t => t.role === 'water');
-  const fed = foodTask ? foodTask.done : false;
-  const watered = waterTask ? waterTask.done : false;
+  const fed = isFed();
+  const watered = isWatered();
 
-  document.getElementById('foodStatus').textContent = fed ? '🍖 Fed' : '🍖 Not fed';
+  const foodLeft = fed ? timeLeft(state.pet.feedTime, FEED_DECAY_MS) : null;
+  const waterLeft = watered ? timeLeft(state.pet.waterTime, WATER_DECAY_MS) : null;
+
+  document.getElementById('foodStatus').textContent = fed ? `🍖 Fed (${foodLeft} left)` : '🍖 Hungry';
   document.getElementById('foodStatus').className = fed ? 'active' : '';
-  document.getElementById('waterStatus').textContent = watered ? '💧 Watered' : '💧 Not watered';
+  document.getElementById('waterStatus').textContent = watered ? `💧 Watered (${waterLeft} left)` : '💧 Thirsty';
   document.getElementById('waterStatus').className = watered ? 'active' : '';
 
   const petEmoji = document.getElementById('petEmoji');
@@ -294,10 +324,10 @@ function render() {
     petMsg.textContent = 'Buddy is happy, full, and hydrated!';
   } else if (fed || watered) {
     petEmoji.textContent = '🐶';
-    petMsg.textContent = fed ? 'Buddy is fed, but still thirsty.' : 'Buddy had water, but is still hungry.';
+    petMsg.textContent = fed ? 'Buddy is fed, but getting thirsty.' : 'Buddy has water, but is getting hungry.';
   } else {
     petEmoji.textContent = '🐶';
-    petMsg.textContent = 'Waiting for breakfast...';
+    petMsg.textContent = 'Buddy is hungry and thirsty — time for a meal?';
   }
 
   const priorityEl = document.getElementById('priorityTasks');
@@ -367,8 +397,22 @@ function addProgress(id, amt) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
   task.current = Math.max(0, task.current + amt);
-  const wasDone = task.done;
   task.done = task.current >= task.target;
+
+  if (task.role === 'food') {
+    state.pet.feedPending += amt;
+    while (state.pet.feedPending >= FEED_THRESHOLD) {
+      state.pet.feedPending -= FEED_THRESHOLD;
+      state.pet.feedTime = Date.now();
+    }
+  } else if (task.role === 'water') {
+    state.pet.waterPending += amt;
+    while (state.pet.waterPending >= WATER_THRESHOLD) {
+      state.pet.waterPending -= WATER_THRESHOLD;
+      state.pet.waterTime = Date.now();
+    }
+  }
+
   saveState();
   render();
 }
@@ -430,6 +474,7 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
 });
 
 render();
+setInterval(render, 60000); // keep the "time left" countdown current while the app is open
 </script>
 </body>
 </html>
