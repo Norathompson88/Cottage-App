@@ -18,75 +18,121 @@
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     margin: 0;
-    min-height: 100%;
+    height: 100%;
+    overflow: hidden;
     background: var(--bg);
     font-family: -apple-system, BlinkMacSystemFont, sans-serif;
     color: var(--ink);
   }
-  .wrap {
-    max-width: 480px;
-    margin: 0 auto;
-    padding: env(safe-area-inset-top, 20px) 16px 40px;
+
+  .app-scene { position: fixed; inset: 0; overflow: hidden; background: #d8cba8; }
+  .scene-room { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scene-lighting { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; transition: background-color 1.2s ease, opacity 1.2s ease; z-index: 2; }
+  .scene-item, .scene-dog {
+    position: absolute;
+    pointer-events: none;
+    transition: left 1.1s ease-in-out, top 1.1s ease-in-out, opacity 0.25s ease;
   }
-  header {
-    text-align: center;
-    padding: 16px 0 8px;
-  }
-  header h1 { margin: 0; font-size: 1.4rem; }
-  .coins {
+  .scene-dog { z-index: 3; }
+
+  .hud-coins {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 12px) + 10px);
+    left: 50%;
+    transform: translateX(-50%);
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    background: var(--card);
+    background: rgba(255,250,240,0.88);
+    backdrop-filter: blur(4px);
     border-radius: 20px;
-    padding: 6px 14px;
-    margin-top: 8px;
+    padding: 7px 16px;
     font-weight: 600;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    z-index: 6;
   }
-  .coins .dot { color: var(--coin); font-size: 1.1rem; }
+  .hud-coins .dot { color: var(--coin); font-size: 1.1rem; }
 
-  .pet-card {
-    background: var(--card);
-    border-radius: 18px;
-    padding: 20px;
-    text-align: center;
-    margin: 16px 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  .hud-status {
+    position: fixed;
+    left: 12px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+    background: rgba(255,250,240,0.85);
+    backdrop-filter: blur(4px);
+    border-radius: 14px;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    max-width: 62%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 6;
   }
-  .pet-emoji { font-size: 4rem; }
-  .pet-msg { margin-top: 6px; font-size: 0.95rem; color: var(--ink); opacity: 0.85; }
-  .pet-status {
+  .hud-status .row { display: flex; gap: 10px; margin-bottom: 3px; }
+  .hud-status .row span { opacity: 0.6; }
+  .hud-status .row span.active { opacity: 1; font-weight: 600; }
+  .hud-status .msg { opacity: 0.7; }
+
+  .fab-bar {
+    position: fixed;
+    right: 14px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
     display: flex;
-    justify-content: center;
-    gap: 16px;
-    margin-top: 10px;
-    font-size: 0.85rem;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 6;
   }
-  .pet-status span { opacity: 0.6; }
-  .pet-status span.active { opacity: 1; font-weight: 600; }
+  .fab-btn {
+    width: 54px; height: 54px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,250,240,0.92);
+    backdrop-filter: blur(4px);
+    font-size: 1.5rem;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    display: flex; align-items: center; justify-content: center;
+  }
 
-  .scene-wrap { margin: 16px 0; }
-  .scene {
-    position: relative;
-    width: 100%;
-    aspect-ratio: 941 / 1672;
-    border-radius: 18px;
-    overflow: hidden;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
-    background: #d8cba8;
+  .panel-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.22);
+    display: none;
+    z-index: 8;
   }
-  .scene-room { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-  .scene-lighting { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; transition: background-color 1.2s ease, opacity 1.2s ease; }
-  .scene-item, .scene-dog { position: absolute; pointer-events: none; }
-  .scene-dog { transition: opacity 0.25s ease; }
-  .pet-msg { text-align: center; margin-top: 10px; font-size: 0.95rem; opacity: 0.85; }
-  .pet-status { display: flex; justify-content: center; gap: 16px; margin-top: 6px; font-size: 0.85rem; }
-  .owned-items {
-    margin-top: 12px;
-    font-size: 1.4rem;
-    letter-spacing: 6px;
+  .panel-overlay.open { display: block; }
+  .panel {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-height: 78vh;
+    background: rgba(255,250,240,0.93);
+    backdrop-filter: blur(10px);
+    border-radius: 22px 22px 0 0;
+    padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+    overflow-y: auto;
+    transform: translateY(105%);
+    transition: transform 0.3s ease;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.2);
+    z-index: 9;
   }
+  .panel.open { transform: translateY(0); }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .panel-header h2 { margin: 0; font-size: 1.15rem; }
+  .panel-close {
+    border: none; background: rgba(0,0,0,0.06);
+    width: 30px; height: 30px; border-radius: 50%;
+    font-size: 0.95rem;
+  }
+  .panel h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    margin: 18px 0 8px 2px;
+  }
+  .panel h3:first-of-type { margin-top: 0; }
 
   .shop-item {
     background: var(--card);
@@ -98,7 +144,7 @@
     gap: 12px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   }
-  .shop-item .emoji { font-size: 1.6rem; }
+  .shop-item .thumb { width: 46px; height: 46px; object-fit: contain; flex-shrink: 0; }
   .shop-item .info { flex: 1; }
   .shop-item .info .name { font-size: 0.95rem; }
   .shop-item .info .cost { font-size: 0.8rem; opacity: 0.55; }
@@ -242,97 +288,63 @@
     border-radius: 8px;
     font-weight: 600;
   }
-
-  .tab-panel { padding-bottom: 90px; }
-  .tab-bar {
-    position: fixed;
-    bottom: 0; left: 0; right: 0;
-    display: flex;
-    background: var(--card);
-    border-top: 1px solid rgba(0,0,0,0.08);
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
-    z-index: 10;
-  }
-  .tab-btn {
-    flex: 1;
-    border: none;
-    background: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    font-size: 1.3rem;
-    color: var(--ink);
-    opacity: 0.5;
-    padding: 4px 0;
-  }
-  .tab-btn.active { opacity: 1; }
-  .tab-btn span { font-size: 0.7rem; font-weight: 600; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>🏡 The Cottage</h1>
-    <div class="coins"><span class="dot">●</span><span id="coinCount">0</span> coins</div>
-  </header>
+<div class="app-scene" id="scene">
+  <img class="scene-room" src="room.png" alt="cottage">
+  <div class="scene-lighting" id="sceneLighting"></div>
+  <img class="scene-item" id="item-rug" src="item-rug.png" style="display:none">
+  <img class="scene-item" id="item-bed" src="item-bed.png" style="display:none">
+  <img class="scene-item" id="item-lamp" src="item-lamp.png" style="display:none">
+  <img class="scene-item" id="item-ball" src="item-ball.png" style="display:none">
+  <img class="scene-item" id="item-rope" src="item-rope.png" style="display:none">
+  <img class="scene-item" id="foodBowl" src="bowl-food-empty.png" alt="food bowl">
+  <img class="scene-item" id="waterBowl" src="bowl-water-empty2.png" alt="water bowl">
+  <img class="scene-dog" id="dogImg" src="dog-idle.png" alt="pet dog">
+</div>
 
-  <div class="tab-panel" id="tab-room">
-    <div class="scene-wrap">
-      <div class="scene" id="scene">
-        <img class="scene-room" src="room.png" alt="cottage">
-        <div class="scene-lighting" id="sceneLighting"></div>
-        <img class="scene-item" id="item-rug" src="item-rug.png" style="display:none">
-        <img class="scene-item" id="item-bed" src="item-bed.png" style="display:none">
-        <img class="scene-item" id="item-lamp" src="item-lamp.png" style="display:none">
-        <img class="scene-item" id="item-ball" src="item-ball.png" style="display:none">
-        <img class="scene-item" id="item-rope" src="item-rope.png" style="display:none">
-        <img class="scene-dog" id="dogImg" src="dog-idle.png" alt="pet dog">
-      </div>
-      <div class="pet-msg" id="petMsg">Waiting for breakfast...</div>
-      <div class="pet-status">
-        <span id="foodStatus">🍖 Not fed</span>
-        <span id="waterStatus">💧 Not watered</span>
-      </div>
-    </div>
+<div class="hud-coins"><span class="dot">●</span><span id="coinCount">0</span> coins</div>
+
+<div class="hud-status">
+  <div class="row">
+    <span id="foodStatus">🍖 Not fed</span>
+    <span id="waterStatus">💧 Not watered</span>
   </div>
+  <div class="msg" id="petMsg">Waiting for breakfast...</div>
+</div>
 
-  <div class="tab-panel" id="tab-tasks" style="display:none">
-    <section>
-      <h2>Priority — feeds & waters your pet</h2>
-      <div id="priorityTasks"></div>
-    </section>
+<div class="fab-bar">
+  <button class="fab-btn" data-panel="tasks">✅</button>
+  <button class="fab-btn" data-panel="shop">🛍️</button>
+</div>
 
-    <section>
-      <h2>Other habits — earn coins</h2>
-      <div id="coinTasks"></div>
-    </section>
+<div class="panel-overlay" id="panelOverlay"></div>
 
-    <div class="manage-toggle" id="manageToggle">Manage tasks</div>
-    <div class="manage" id="manageSection">
-      <div id="manageList"></div>
-      <div class="add-task-form">
-        <strong>Add a coin task</strong>
-        <input type="text" id="newTaskName" placeholder="Task name">
-        <input type="number" id="newTaskCoins" placeholder="Coins earned">
-        <button id="addTaskBtn">Add task</button>
-      </div>
+<div class="panel" id="panel-tasks">
+  <div class="panel-header"><h2>Tasks</h2><button class="panel-close" data-close>✕</button></div>
+  <h3>Priority — feeds & waters your pet</h3>
+  <div id="priorityTasks"></div>
+
+  <h3>Other habits — earn coins</h3>
+  <div id="coinTasks"></div>
+
+  <div class="manage-toggle" id="manageToggle">Manage tasks</div>
+  <div class="manage" id="manageSection">
+    <div id="manageList"></div>
+    <div class="add-task-form">
+      <strong>Add a coin task</strong>
+      <input type="text" id="newTaskName" placeholder="Task name">
+      <input type="number" id="newTaskCoins" placeholder="Coins earned">
+      <button id="addTaskBtn">Add task</button>
     </div>
-  </div>
-
-  <div class="tab-panel" id="tab-shop" style="display:none">
-    <section>
-      <h2>Shop</h2>
-      <div id="shopItems"></div>
-    </section>
   </div>
 </div>
 
-<nav class="tab-bar">
-  <button class="tab-btn active" data-tab="room">🏡<span>Room</span></button>
-  <button class="tab-btn" data-tab="tasks">✅<span>Tasks</span></button>
-  <button class="tab-btn" data-tab="shop">🛍️<span>Shop</span></button>
-</nav>
+<div class="panel" id="panel-shop">
+  <div class="panel-header"><h2>Shop</h2><button class="panel-close" data-close>✕</button></div>
+  <div id="shopItems"></div>
+</div>
 
 <script>
 const STORAGE_KEY = 'cottageState';
@@ -369,11 +381,11 @@ function defaultState() {
 }
 
 const SHOP_ITEMS = [
-  { id: 'bed', name: 'Cozy pet bed', cost: 40, emoji: '🛏️' },
-  { id: 'rug', name: 'Woven rug', cost: 25, emoji: '🧺' },
-  { id: 'lamp', name: 'Warm lamp', cost: 30, emoji: '💡' },
-  { id: 'ball', name: 'Tennis ball', cost: 15, emoji: '🎾' },
-  { id: 'rope', name: 'Rope toy', cost: 15, emoji: '🪢' }
+  { id: 'bed', name: 'Cozy pet bed', cost: 40, img: 'item-bed.png' },
+  { id: 'rug', name: 'Woven rug', cost: 25, img: 'item-rug.png' },
+  { id: 'lamp', name: 'Warm lamp', cost: 30, img: 'item-lamp.png' },
+  { id: 'ball', name: 'Tennis ball', cost: 15, img: 'item-ball.png' },
+  { id: 'rope', name: 'Rope toy', cost: 15, img: 'item-rope.png' }
 ];
 
 function loadState() {
@@ -565,7 +577,7 @@ function renderShop() {
     const row = document.createElement('div');
     row.className = 'shop-item';
     row.innerHTML = `
-      <div class="emoji">${item.emoji}</div>
+      <img class="thumb" src="${item.img}" alt="${item.name}">
       <div class="info">
         <div class="name">${item.name}</div>
         <div class="cost">${owned ? 'Owned' : item.cost + ' coins'}</div>
@@ -600,6 +612,16 @@ const DOG_POSES = {
 };
 // Where the dog sleeps if you own the pet bed, instead of its default sleeping spot
 const SLEEP_IN_BED = { left: 10, top: 66, width: 28 };
+const HOME_SPOT = DOG_POSES.idle;
+
+// Feeding station: where the bowls sit, and where the dog stands to use them.
+// All estimates — easy to nudge once you see it live.
+const FOOD_BOWL_SPOT  = { left: 32, top: 85, width: 12 };
+const WATER_BOWL_SPOT = { left: 50, top: 85, width: 12 };
+const EAT_STAND_SPOT   = { left: 36, top: 76, width: 30 };
+const DRINK_STAND_SPOT = { left: 52, top: 76, width: 30 };
+const WALK_MS = 1100;
+const EAT_DRINK_HOLD_MS = 5000; // how long the dog stays at the bowl, clearly visible
 
 // Where each shop item sits in the scene (percentages)
 const ITEM_PLACEMENT = {
@@ -617,6 +639,42 @@ function triggerTransient(pose, ms) {
   transientUntil = Date.now() + ms;
   render();
   setTimeout(render, ms + 50);
+}
+
+// Walk-to-bowl-and-back sequence. Not saved to state — purely a visual sequence
+// that plays out over a few seconds when you log enough food/water.
+let animOverride = null;
+const sceneFlags = { foodBowlFull: false, waterBowlFull: false };
+
+function playFeedingSequence(kind) {
+  const isFood = kind === 'food';
+  const standSpot = isFood ? EAT_STAND_SPOT : DRINK_STAND_SPOT;
+  const actionSrc = isFood ? DOG_POSES.eating.src : DOG_POSES.drinking.src;
+  const bowlFlag = isFood ? 'foodBowlFull' : 'waterBowlFull';
+
+  // walk to the bowl
+  animOverride = { src: 'dog-walking.png', ...standSpot };
+  render();
+
+  setTimeout(() => {
+    // arrived — eat/drink, bowl fills
+    animOverride = { src: actionSrc, ...standSpot };
+    sceneFlags[bowlFlag] = true;
+    render();
+
+    setTimeout(() => {
+      // finished — bowl empties, walk back home
+      sceneFlags[bowlFlag] = false;
+      animOverride = { src: 'dog-walking.png', ...HOME_SPOT };
+      render();
+
+      setTimeout(() => {
+        animOverride = null; // back to normal mood-driven pose
+        render();
+      }, WALK_MS + 100);
+
+    }, EAT_DRINK_HOLD_MS);
+  }, WALK_MS + 100);
 }
 
 function currentHour() {
@@ -659,28 +717,41 @@ function renderScene(mood, overallMood) {
     }
   });
 
-  // dog pose
-  let poseName;
-  if (transientPose && Date.now() < transientUntil) {
-    poseName = transientPose;
-  } else if (overallMood === 'sad') {
-    poseName = 'sad';
-  } else if (overallMood === 'tired') {
-    poseName = 'tired';
-  } else if (isNight(currentHour())) {
-    poseName = 'sleeping';
-  } else {
-    poseName = 'idle';
-  }
+  // feeding station bowls — always visible, fill/empty based on the feeding sequence
+  const foodBowlEl = document.getElementById('foodBowl');
+  const waterBowlEl = document.getElementById('waterBowl');
+  foodBowlEl.src = sceneFlags.foodBowlFull ? 'bowl-food-full2.png' : 'bowl-food-empty.png';
+  waterBowlEl.src = sceneFlags.waterBowlFull ? 'bowl-water-full2.png' : 'bowl-water-empty2.png';
+  foodBowlEl.style.left = FOOD_BOWL_SPOT.left + '%';
+  foodBowlEl.style.top = FOOD_BOWL_SPOT.top + '%';
+  foodBowlEl.style.width = FOOD_BOWL_SPOT.width + '%';
+  waterBowlEl.style.left = WATER_BOWL_SPOT.left + '%';
+  waterBowlEl.style.top = WATER_BOWL_SPOT.top + '%';
+  waterBowlEl.style.width = WATER_BOWL_SPOT.width + '%';
 
+  // dog pose + position
   const dogImg = document.getElementById('dogImg');
-  const pose = DOG_POSES[poseName];
-  dogImg.src = pose.src;
+  let src, left, top, width;
 
-  let { left, top, width } = pose;
-  if (poseName === 'sleeping' && state.owned.includes('bed')) {
-    ({ left, top, width } = SLEEP_IN_BED);
+  if (animOverride) {
+    ({ src, left, top, width } = animOverride);
+  } else if (transientPose && Date.now() < transientUntil) {
+    ({ src, left, top, width } = DOG_POSES[transientPose]);
+  } else {
+    let poseName;
+    if (overallMood === 'sad') poseName = 'sad';
+    else if (overallMood === 'tired') poseName = 'tired';
+    else if (isNight(currentHour())) poseName = 'sleeping';
+    else poseName = 'idle';
+
+    const pose = DOG_POSES[poseName];
+    ({ src, left, top, width } = pose);
+    if (poseName === 'sleeping' && state.owned.includes('bed')) {
+      ({ left, top, width } = SLEEP_IN_BED);
+    }
   }
+
+  dogImg.src = src;
   dogImg.style.left = left + '%';
   dogImg.style.top = top + '%';
   dogImg.style.width = width + '%';
@@ -720,8 +791,8 @@ function addProgress(id, amt) {
   }
 
   saveState();
-  if (justFed) triggerTransient('eating', 3500);
-  else if (justWatered) triggerTransient('drinking', 3500);
+  if (justFed) playFeedingSequence('food');
+  else if (justWatered) playFeedingSequence('water');
   render();
 }
 
@@ -793,14 +864,22 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
 render();
 setInterval(render, 60000); // keep the "time left" countdown current while the app is open
 
-document.querySelectorAll('.tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
-    btn.classList.add('active');
-    document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
-  });
+const panelOverlay = document.getElementById('panelOverlay');
+function openPanel(name) {
+  document.getElementById('panel-' + name).classList.add('open');
+  panelOverlay.classList.add('open');
+}
+function closeAllPanels() {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('open'));
+  panelOverlay.classList.remove('open');
+}
+document.querySelectorAll('.fab-btn').forEach(btn => {
+  btn.addEventListener('click', () => openPanel(btn.dataset.panel));
 });
+document.querySelectorAll('.panel-close').forEach(btn => {
+  btn.addEventListener('click', closeAllPanels);
+});
+panelOverlay.addEventListener('click', closeAllPanels);
 </script>
 </body>
 </html>
