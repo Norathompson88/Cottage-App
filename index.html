@@ -89,7 +89,9 @@
     font-size: 1.5rem;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2);
     display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
   }
+  .fab-btn img { width: 60%; height: 60%; object-fit: contain; }
 
   .panel-overlay {
     position: fixed; inset: 0;
@@ -102,8 +104,8 @@
     position: fixed;
     left: 0; right: 0; bottom: 0;
     max-height: 78vh;
-    background: rgba(255,250,240,0.93);
-    backdrop-filter: blur(10px);
+    background: rgba(255,250,240,0.5);
+    backdrop-filter: blur(3px);
     border-radius: 22px 22px 0 0;
     padding: 16px 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
     overflow-y: auto;
@@ -172,7 +174,7 @@
   }
 
   .task {
-    background: var(--card);
+    background: rgba(255,250,240,0.55);
     border-radius: 14px;
     padding: 14px;
     margin-bottom: 10px;
@@ -252,7 +254,7 @@
   }
   .manage.open { display: block; }
   .manage-item {
-    background: var(--card);
+    background: rgba(255,250,240,0.55);
     border-radius: 12px;
     padding: 10px 12px;
     margin-bottom: 8px;
@@ -265,7 +267,7 @@
   .manage-item input[type=number] { width: 55px; border: 1px solid #ddd; border-radius: 6px; padding: 4px 6px; }
   .manage-item button.del { border: none; background: #d9776e; color: white; border-radius: 6px; padding: 4px 8px; }
   .add-task-form {
-    background: var(--card);
+    background: rgba(255,250,240,0.55);
     border-radius: 12px;
     padding: 12px;
     margin-top: 10px;
@@ -300,7 +302,7 @@
   <img class="scene-item" id="item-ball" src="item-ball.png" style="display:none">
   <img class="scene-item" id="item-rope" src="item-rope.png" style="display:none">
   <img class="scene-item" id="foodBowl" src="bowl-food-empty.png" alt="food bowl">
-  <img class="scene-item" id="waterBowl" src="bowl-water-empty2.png" alt="water bowl">
+  <img class="scene-item" id="waterBowl" src="bowl-water-empty.png" alt="water bowl">
   <img class="scene-dog" id="dogImg" src="dog-idle.png" alt="pet dog">
 </div>
 
@@ -315,7 +317,7 @@
 </div>
 
 <div class="fab-bar">
-  <button class="fab-btn" data-panel="tasks">✅</button>
+  <button class="fab-btn" data-panel="tasks"><img src="icon-tasks.png" alt="Tasks"></button>
   <button class="fab-btn" data-panel="shop">🛍️</button>
 </div>
 
@@ -616,8 +618,8 @@ const HOME_SPOT = DOG_POSES.idle;
 
 // Feeding station: where the bowls sit, and where the dog stands to use them.
 // All estimates — easy to nudge once you see it live.
-const FOOD_BOWL_SPOT  = { left: 32, top: 85, width: 12 };
-const WATER_BOWL_SPOT = { left: 50, top: 85, width: 12 };
+const FOOD_BOWL_SPOT  = { left: 30, top: 74, width: 20 };
+const WATER_BOWL_SPOT = { left: 52, top: 74, width: 20 };
 const EAT_STAND_SPOT   = { left: 36, top: 76, width: 30 };
 const DRINK_STAND_SPOT = { left: 52, top: 76, width: 30 };
 const WALK_MS = 1100;
@@ -644,13 +646,12 @@ function triggerTransient(pose, ms) {
 // Walk-to-bowl-and-back sequence. Not saved to state — purely a visual sequence
 // that plays out over a few seconds when you log enough food/water.
 let animOverride = null;
-const sceneFlags = { foodBowlFull: false, waterBowlFull: false };
+let activeBowl = null; // 'food' | 'water' | null — which bowl is currently filled/in-use
 
 function playFeedingSequence(kind) {
   const isFood = kind === 'food';
   const standSpot = isFood ? EAT_STAND_SPOT : DRINK_STAND_SPOT;
   const actionSrc = isFood ? DOG_POSES.eating.src : DOG_POSES.drinking.src;
-  const bowlFlag = isFood ? 'foodBowlFull' : 'waterBowlFull';
 
   // walk to the bowl
   animOverride = { src: 'dog-walking.png', ...standSpot };
@@ -659,12 +660,12 @@ function playFeedingSequence(kind) {
   setTimeout(() => {
     // arrived — eat/drink, bowl fills
     animOverride = { src: actionSrc, ...standSpot };
-    sceneFlags[bowlFlag] = true;
+    activeBowl = kind;
     render();
 
     setTimeout(() => {
       // finished — bowl empties, walk back home
-      sceneFlags[bowlFlag] = false;
+      activeBowl = null;
       animOverride = { src: 'dog-walking.png', ...HOME_SPOT };
       render();
 
@@ -720,8 +721,10 @@ function renderScene(mood, overallMood) {
   // feeding station bowls — always visible, fill/empty based on the feeding sequence
   const foodBowlEl = document.getElementById('foodBowl');
   const waterBowlEl = document.getElementById('waterBowl');
-  foodBowlEl.src = sceneFlags.foodBowlFull ? 'bowl-food-full2.png' : 'bowl-food-empty.png';
-  waterBowlEl.src = sceneFlags.waterBowlFull ? 'bowl-water-full2.png' : 'bowl-water-empty2.png';
+  foodBowlEl.src = activeBowl === 'food' ? 'bowl-food-full.png' : 'bowl-food-empty.png';
+  waterBowlEl.src = activeBowl === 'water' ? 'bowl-water-full.png' : 'bowl-water-empty.png';
+  foodBowlEl.style.display = 'block';
+  waterBowlEl.style.display = 'block';
   foodBowlEl.style.left = FOOD_BOWL_SPOT.left + '%';
   foodBowlEl.style.top = FOOD_BOWL_SPOT.top + '%';
   foodBowlEl.style.width = FOOD_BOWL_SPOT.width + '%';
