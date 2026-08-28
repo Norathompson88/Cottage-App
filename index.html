@@ -65,6 +65,23 @@
   }
   .pet-status span { opacity: 0.6; }
   .pet-status span.active { opacity: 1; font-weight: 600; }
+
+  .scene-wrap { margin: 16px 0; }
+  .scene {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 941 / 1672;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    background: #d8cba8;
+  }
+  .scene-room { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+  .scene-lighting { position: absolute; inset: 0; pointer-events: none; mix-blend-mode: multiply; transition: background-color 1.2s ease, opacity 1.2s ease; }
+  .scene-item, .scene-dog { position: absolute; pointer-events: none; }
+  .scene-dog { transition: opacity 0.25s ease; }
+  .pet-msg { text-align: center; margin-top: 10px; font-size: 0.95rem; opacity: 0.85; }
+  .pet-status { display: flex; justify-content: center; gap: 16px; margin-top: 6px; font-size: 0.85rem; }
   .owned-items {
     margin-top: 12px;
     font-size: 1.4rem;
@@ -132,6 +149,7 @@
   .task-name { flex: 1; font-size: 1rem; }
   .task-name.done { text-decoration: line-through; opacity: 0.5; }
   .task-reward { font-size: 0.8rem; opacity: 0.55; }
+  .task-stats { font-size: 0.75rem; opacity: 0.6; margin-top: 8px; }
 
   .progress-wrap { margin-top: 10px; }
   .progress-bar-bg {
@@ -224,6 +242,32 @@
     border-radius: 8px;
     font-weight: 600;
   }
+
+  .tab-panel { padding-bottom: 90px; }
+  .tab-bar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    display: flex;
+    background: var(--card);
+    border-top: 1px solid rgba(0,0,0,0.08);
+    padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px));
+    z-index: 10;
+  }
+  .tab-btn {
+    flex: 1;
+    border: none;
+    background: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 1.3rem;
+    color: var(--ink);
+    opacity: 0.5;
+    padding: 4px 0;
+  }
+  .tab-btn.active { opacity: 1; }
+  .tab-btn span { font-size: 0.7rem; font-weight: 600; }
 </style>
 </head>
 <body>
@@ -233,42 +277,62 @@
     <div class="coins"><span class="dot">●</span><span id="coinCount">0</span> coins</div>
   </header>
 
-  <div class="pet-card">
-    <div class="pet-emoji" id="petEmoji">🐶</div>
-    <div class="pet-msg" id="petMsg">Waiting for breakfast...</div>
-    <div class="pet-status">
-      <span id="foodStatus">🍖 Not fed</span>
-      <span id="waterStatus">💧 Not watered</span>
+  <div class="tab-panel" id="tab-room">
+    <div class="scene-wrap">
+      <div class="scene" id="scene">
+        <img class="scene-room" src="room.png" alt="cottage">
+        <div class="scene-lighting" id="sceneLighting"></div>
+        <img class="scene-item" id="item-rug" src="item-rug.png" style="display:none">
+        <img class="scene-item" id="item-bed" src="item-bed.png" style="display:none">
+        <img class="scene-item" id="item-lamp" src="item-lamp.png" style="display:none">
+        <img class="scene-item" id="item-ball" src="item-ball.png" style="display:none">
+        <img class="scene-item" id="item-rope" src="item-rope.png" style="display:none">
+        <img class="scene-dog" id="dogImg" src="dog-idle.png" alt="pet dog">
+      </div>
+      <div class="pet-msg" id="petMsg">Waiting for breakfast...</div>
+      <div class="pet-status">
+        <span id="foodStatus">🍖 Not fed</span>
+        <span id="waterStatus">💧 Not watered</span>
+      </div>
     </div>
-    <div class="owned-items" id="ownedItems"></div>
   </div>
 
-  <section>
-    <h2>Priority — feeds & waters your pet</h2>
-    <div id="priorityTasks"></div>
-  </section>
+  <div class="tab-panel" id="tab-tasks" style="display:none">
+    <section>
+      <h2>Priority — feeds & waters your pet</h2>
+      <div id="priorityTasks"></div>
+    </section>
 
-  <section>
-    <h2>Other habits — earn coins</h2>
-    <div id="coinTasks"></div>
-  </section>
+    <section>
+      <h2>Other habits — earn coins</h2>
+      <div id="coinTasks"></div>
+    </section>
 
-  <section>
-    <h2>Shop</h2>
-    <div id="shopItems"></div>
-  </section>
-
-  <div class="manage-toggle" id="manageToggle">Manage tasks</div>
-  <div class="manage" id="manageSection">
-    <div id="manageList"></div>
-    <div class="add-task-form">
-      <strong>Add a coin task</strong>
-      <input type="text" id="newTaskName" placeholder="Task name">
-      <input type="number" id="newTaskCoins" placeholder="Coins earned">
-      <button id="addTaskBtn">Add task</button>
+    <div class="manage-toggle" id="manageToggle">Manage tasks</div>
+    <div class="manage" id="manageSection">
+      <div id="manageList"></div>
+      <div class="add-task-form">
+        <strong>Add a coin task</strong>
+        <input type="text" id="newTaskName" placeholder="Task name">
+        <input type="number" id="newTaskCoins" placeholder="Coins earned">
+        <button id="addTaskBtn">Add task</button>
+      </div>
     </div>
+  </div>
+
+  <div class="tab-panel" id="tab-shop" style="display:none">
+    <section>
+      <h2>Shop</h2>
+      <div id="shopItems"></div>
+    </section>
   </div>
 </div>
+
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="room">🏡<span>Room</span></button>
+  <button class="tab-btn" data-tab="tasks">✅<span>Tasks</span></button>
+  <button class="tab-btn" data-tab="shop">🛍️<span>Shop</span></button>
+</nav>
 
 <script>
 const STORAGE_KEY = 'cottageState';
@@ -307,9 +371,9 @@ function defaultState() {
 const SHOP_ITEMS = [
   { id: 'bed', name: 'Cozy pet bed', cost: 40, emoji: '🛏️' },
   { id: 'rug', name: 'Woven rug', cost: 25, emoji: '🧺' },
-  { id: 'plant', name: 'Potted plant', cost: 20, emoji: '🪴' },
   { id: 'lamp', name: 'Warm lamp', cost: 30, emoji: '💡' },
-  { id: 'toy', name: 'Squeaky toy', cost: 15, emoji: '🎾' }
+  { id: 'ball', name: 'Tennis ball', cost: 15, emoji: '🎾' },
+  { id: 'rope', name: 'Rope toy', cost: 15, emoji: '🪢' }
 ];
 
 function loadState() {
@@ -319,16 +383,45 @@ function loadState() {
     state.pet = { feedPending: 0, feedTime: null, waterPending: 0, waterTime: null };
   }
   if (!state.owned) state.owned = [];
+  state.tasks.forEach(t => {
+    if (t.streak === undefined) t.streak = 0;
+    if (t.longestStreak === undefined) t.longestStreak = 0;
+    if (t.missedCount === undefined) t.missedCount = 0;
+    if (t.goalDays === undefined) t.goalDays = null;
+  });
+
   if (state.date !== todayStr()) {
-    // new day: reset daily goal progress and coin tasks, keep coins
-    // (pet hunger/thirst is NOT reset here — it runs on real elapsed time, not calendar days)
-    state.date = todayStr();
+    const daysPassed = daysBetween(state.date, todayStr());
     state.tasks.forEach(t => {
+      // the day that just ended: did the task get completed?
+      if (t.done) {
+        t.streak += 1;
+        if (t.streak > t.longestStreak) t.longestStreak = t.streak;
+      } else {
+        t.streak = 0;
+        t.missedCount += 1;
+      }
+      // any fully-skipped days in between (app wasn't opened at all) count as misses too
+      const extraMissedDays = Math.max(0, daysPassed - 1);
+      if (extraMissedDays > 0) {
+        t.streak = 0;
+        t.missedCount += extraMissedDays;
+      }
+      // reset for the new day
       t.done = false;
       if (t.type === 'progress') t.current = 0;
     });
+    state.date = todayStr();
   }
   return state;
+}
+
+function daysBetween(dateStrA, dateStrB) {
+  const [ay, am, ad] = dateStrA.split('-').map(Number);
+  const [by, bm, bd] = dateStrB.split('-').map(Number);
+  const a = new Date(ay, am - 1, ad);
+  const b = new Date(by, bm - 1, bd);
+  return Math.round((b - a) / 86400000);
 }
 
 function isFed() {
@@ -345,6 +438,25 @@ function timeLeft(sinceTime, decayMs) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+const TIRED_WARNING_MS = 60 * 60 * 1000; // pet looks tired starting 1 hour before the deadline
+
+// 'content' = recently fed/watered, 'tired' = within 1hr of going hungry/thirsty, 'sad' = passed the deadline
+function moodFor(sinceTime, decayMs) {
+  if (!sinceTime) return 'sad';
+  const elapsed = Date.now() - sinceTime;
+  if (elapsed < decayMs - TIRED_WARNING_MS) return 'content';
+  if (elapsed < decayMs) return 'tired';
+  return 'sad';
+}
+
+function computeMood() {
+  const foodMood = moodFor(state.pet.feedTime, FEED_DECAY_MS);
+  const waterMood = moodFor(state.pet.waterTime, WATER_DECAY_MS);
+  const rank = { content: 0, tired: 1, sad: 2 };
+  const overall = rank[foodMood] >= rank[waterMood] ? foodMood : waterMood;
+  return { foodMood, waterMood, overall };
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
@@ -355,32 +467,27 @@ saveState();
 function render() {
   document.getElementById('coinCount').textContent = state.coins;
 
+  const { foodMood, waterMood, overall } = computeMood();
   const fed = isFed();
   const watered = isWatered();
-
   const foodLeft = fed ? timeLeft(state.pet.feedTime, FEED_DECAY_MS) : null;
   const waterLeft = watered ? timeLeft(state.pet.waterTime, WATER_DECAY_MS) : null;
 
-  document.getElementById('foodStatus').textContent = fed ? `🍖 Fed (${foodLeft} left)` : '🍖 Hungry';
-  document.getElementById('foodStatus').className = fed ? 'active' : '';
-  document.getElementById('waterStatus').textContent = watered ? `💧 Watered (${waterLeft} left)` : '💧 Thirsty';
-  document.getElementById('waterStatus').className = watered ? 'active' : '';
+  const foodLabels = { content: `🍖 Fed (${foodLeft} left)`, tired: '🍖 Getting hungry soon', sad: '🍖 Hungry' };
+  const waterLabels = { content: `💧 Watered (${waterLeft} left)`, tired: '💧 Getting thirsty soon', sad: '💧 Thirsty' };
+  document.getElementById('foodStatus').textContent = foodLabels[foodMood];
+  document.getElementById('foodStatus').className = foodMood === 'content' ? 'active' : '';
+  document.getElementById('waterStatus').textContent = waterLabels[waterMood];
+  document.getElementById('waterStatus').className = waterMood === 'content' ? 'active' : '';
 
-  const petEmoji = document.getElementById('petEmoji');
   const petMsg = document.getElementById('petMsg');
-  if (fed && watered) {
-    petEmoji.textContent = '🐶💛';
-    petMsg.textContent = 'Buddy is happy, full, and hydrated!';
-  } else if (fed || watered) {
-    petEmoji.textContent = '🐶';
-    petMsg.textContent = fed ? 'Buddy is fed, but getting thirsty.' : 'Buddy has water, but is getting hungry.';
-  } else {
-    petEmoji.textContent = '🐶';
-    petMsg.textContent = 'Buddy is hungry and thirsty — time for a meal?';
-  }
-
-  const ownedEl = document.getElementById('ownedItems');
-  ownedEl.textContent = state.owned.map(id => SHOP_ITEMS.find(i => i.id === id)?.emoji).filter(Boolean).join(' ');
+  const moodMsg = {
+    content: 'Buddy is happy, full, and hydrated!',
+    tired:   'Buddy is looking a little tired — food or water coming up soon?',
+    sad:     'Buddy looks sad and really needs food or water.'
+  };
+  petMsg.textContent = moodMsg[overall];
+  renderScene(computeMood(), overall);
 
   renderShop();
 
@@ -399,7 +506,8 @@ function render() {
           <div class="checkbox ${task.done ? 'done' : ''}" data-id="${task.id}">${task.done ? '✓' : ''}</div>
           <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
           <div class="task-reward">+${task.coinValue}</div>
-        </div>`;
+        </div>
+        ${streakLine(task)}`;
       card.querySelector('.checkbox').addEventListener('click', () => toggleCheckbox(task.id));
     } else {
       const pct = Math.min(100, Math.round((task.current / task.target) * 100));
@@ -420,7 +528,8 @@ function render() {
               <button data-custom="${task.id}">Add</button>
             </span>
           </div>
-        </div>`;
+        </div>
+        ${streakLine(task)}`;
       card.querySelectorAll('button[data-amt]').forEach(btn => {
         btn.addEventListener('click', () => addProgress(task.id, parseFloat(btn.dataset.amt)));
       });
@@ -436,6 +545,15 @@ function render() {
   });
 
   renderManage();
+}
+
+function streakLine(task) {
+  let goalPart = '';
+  if (task.goalDays) {
+    const progress = Math.min(task.streak, task.goalDays);
+    goalPart = ` · 🎯 ${progress}/${task.goalDays} days`;
+  }
+  return `<div class="task-stats">🔥 ${task.streak} day streak${goalPart} · missed ${task.missedCount}</div>`;
 }
 
 function renderShop() {
@@ -469,12 +587,112 @@ function buyItem(id) {
   render();
 }
 
+// Where each dog pose sits within the scene (percentages of scene width/height).
+// These are estimates based on how each pose is framed — nudge left/top/width if the dog looks off after you see it live.
+const DOG_POSES = {
+  idle:     { src: 'dog-idle.png',     left: 36, top: 56, width: 28 },
+  eating:   { src: 'dog-eating.png',   left: 30, top: 60, width: 32 },
+  drinking: { src: 'dog-drinking.png', left: 30, top: 60, width: 32 },
+  tired:    { src: 'dog-tired.png',    left: 26, top: 66, width: 36 },
+  sad:      { src: 'dog-sad.png',      left: 34, top: 58, width: 28 },
+  sleeping: { src: 'dog-sleeping.png', left: 30, top: 70, width: 34 },
+  excited:  { src: 'dog-excited.png',  left: 28, top: 60, width: 34 }
+};
+// Where the dog sleeps if you own the pet bed, instead of its default sleeping spot
+const SLEEP_IN_BED = { left: 10, top: 66, width: 28 };
+
+// Where each shop item sits in the scene (percentages)
+const ITEM_PLACEMENT = {
+  rug:  { left: 26, top: 78, width: 44 },
+  bed:  { left: 4,  top: 70, width: 30 },
+  lamp: { left: 76, top: 34, width: 20 },
+  ball: { left: 60, top: 84, width: 10 },
+  toy:  { left: 70, top: 86, width: 14 } // "toy" = rope, kept separate id below
+};
+
+let transientPose = null;
+let transientUntil = 0;
+function triggerTransient(pose, ms) {
+  transientPose = pose;
+  transientUntil = Date.now() + ms;
+  render();
+  setTimeout(render, ms + 50);
+}
+
+function currentHour() {
+  return new Date().getHours();
+}
+
+function lightingFor(hour) {
+  if (hour >= 6 && hour < 10)  return { color: '255,205,140', opacity: 0.18 };  // morning
+  if (hour >= 10 && hour < 17) return { color: '255,255,255', opacity: 0 };     // day, neutral
+  if (hour >= 17 && hour < 20) return { color: '255,140,60',  opacity: 0.28 };  // evening
+  return { color: '20,30,80', opacity: 0.5 };                                   // night
+}
+
+function isNight(hour) {
+  return hour >= 21 || hour < 6;
+}
+
+function renderScene(mood, overallMood) {
+  // lighting
+  const { color, opacity } = lightingFor(currentHour());
+  const lightEl = document.getElementById('sceneLighting');
+  lightEl.style.backgroundColor = `rgba(${color}, ${opacity})`;
+
+  // items
+  const itemEls = {
+    rug: document.getElementById('item-rug'),
+    bed: document.getElementById('item-bed'),
+    lamp: document.getElementById('item-lamp'),
+    ball: document.getElementById('item-ball'),
+    rope: document.getElementById('item-rope')
+  };
+  Object.entries(itemEls).forEach(([id, el]) => {
+    const owned = state.owned.includes(id);
+    el.style.display = owned ? 'block' : 'none';
+    if (owned) {
+      const p = id === 'rope' ? ITEM_PLACEMENT.toy : ITEM_PLACEMENT[id];
+      el.style.left = p.left + '%';
+      el.style.top = p.top + '%';
+      el.style.width = p.width + '%';
+    }
+  });
+
+  // dog pose
+  let poseName;
+  if (transientPose && Date.now() < transientUntil) {
+    poseName = transientPose;
+  } else if (overallMood === 'sad') {
+    poseName = 'sad';
+  } else if (overallMood === 'tired') {
+    poseName = 'tired';
+  } else if (isNight(currentHour())) {
+    poseName = 'sleeping';
+  } else {
+    poseName = 'idle';
+  }
+
+  const dogImg = document.getElementById('dogImg');
+  const pose = DOG_POSES[poseName];
+  dogImg.src = pose.src;
+
+  let { left, top, width } = pose;
+  if (poseName === 'sleeping' && state.owned.includes('bed')) {
+    ({ left, top, width } = SLEEP_IN_BED);
+  }
+  dogImg.style.left = left + '%';
+  dogImg.style.top = top + '%';
+  dogImg.style.width = width + '%';
+}
+
 function toggleCheckbox(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
   task.done = !task.done;
   state.coins += task.done ? task.coinValue : -task.coinValue;
   saveState();
+  if (task.done) triggerTransient('excited', 3000);
   render();
 }
 
@@ -484,21 +702,26 @@ function addProgress(id, amt) {
   task.current = Math.max(0, task.current + amt);
   task.done = task.current >= task.target;
 
+  let justFed = false, justWatered = false;
   if (task.role === 'food') {
     state.pet.feedPending += amt;
     while (state.pet.feedPending >= FEED_THRESHOLD) {
       state.pet.feedPending -= FEED_THRESHOLD;
       state.pet.feedTime = Date.now();
+      justFed = true;
     }
   } else if (task.role === 'water') {
     state.pet.waterPending += amt;
     while (state.pet.waterPending >= WATER_THRESHOLD) {
       state.pet.waterPending -= WATER_THRESHOLD;
       state.pet.waterTime = Date.now();
+      justWatered = true;
     }
   }
 
   saveState();
+  if (justFed) triggerTransient('eating', 3500);
+  else if (justWatered) triggerTransient('drinking', 3500);
   render();
 }
 
@@ -512,12 +735,14 @@ function renderManage() {
       row.innerHTML = `
         <input type="text" value="${task.name}" data-field="name" data-id="${task.id}">
         <input type="number" value="${task.coinValue}" data-field="coinValue" data-id="${task.id}">
+        <input type="number" value="${task.goalDays ?? ''}" placeholder="goal days" data-field="goalDays" data-id="${task.id}">
         <button class="del" data-del="${task.id}">✕</button>`;
     } else {
       row.innerHTML = `
         <input type="text" value="${task.name}" data-field="name" data-id="${task.id}">
         <input type="number" value="${task.target}" data-field="target" data-id="${task.id}">
-        <span>${task.unit}</span>`;
+        <span>${task.unit}</span>
+        <input type="number" value="${task.goalDays ?? ''}" placeholder="goal days" data-field="goalDays" data-id="${task.id}">`;
     }
     list.appendChild(row);
   });
@@ -526,7 +751,13 @@ function renderManage() {
     inp.addEventListener('change', () => {
       const task = state.tasks.find(t => t.id === inp.dataset.id);
       const field = inp.dataset.field;
-      task[field] = field === 'name' ? inp.value : parseFloat(inp.value);
+      if (field === 'name') {
+        task.name = inp.value;
+      } else if (field === 'goalDays') {
+        task.goalDays = inp.value === '' ? null : parseFloat(inp.value);
+      } else {
+        task[field] = parseFloat(inp.value);
+      }
       saveState();
       render();
     });
@@ -550,7 +781,8 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
   if (!name || isNaN(coins)) return;
   state.tasks.push({
     id: 'task-' + Date.now(),
-    name, role: 'coin', type: 'checkbox', coinValue: coins, done: false
+    name, role: 'coin', type: 'checkbox', coinValue: coins, done: false,
+    streak: 0, longestStreak: 0, missedCount: 0, goalDays: null
   });
   document.getElementById('newTaskName').value = '';
   document.getElementById('newTaskCoins').value = '';
@@ -560,6 +792,15 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
 
 render();
 setInterval(render, 60000); // keep the "time left" countdown current while the app is open
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.style.display = 'none');
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+  });
+});
 </script>
 </body>
 </html>
