@@ -532,7 +532,7 @@ function saveState() {
 let state = loadState();
 saveState();
 
-function render() {
+function refreshScene() {
   document.getElementById('coinCount').textContent = state.coins;
 
   const { foodMood, waterMood, overall } = computeMood();
@@ -556,6 +556,10 @@ function render() {
   };
   petMsg.textContent = moodMsg[overall];
   renderScene(computeMood(), overall);
+}
+
+function render() {
+  refreshScene();
 
   renderShop();
   renderTodos();
@@ -802,7 +806,7 @@ let currentPantFrame = PANT_FRAMES[0];
 function advancePantFrame() {
   pantFrameIndex = (pantFrameIndex + 1) % PANT_FRAMES.length;
   currentPantFrame = PANT_FRAMES[pantFrameIndex];
-  render();
+  refreshScene();
   setTimeout(advancePantFrame, currentPantFrame.hold);
 }
 
@@ -863,23 +867,23 @@ function playFeedingSequence(kind) {
 
   // walk to the bowl
   animOverride = { src: 'dog-walking.png', ...standSpot };
-  render();
+  refreshScene();
 
   setTimeout(() => {
     // arrived — eat/drink, bowl fills
     animOverride = { src: actionSrc, ...standSpot };
     activeBowl = kind;
-    render();
+    refreshScene();
 
     setTimeout(() => {
       // finished — bowl empties, walk back home
       activeBowl = null;
       animOverride = { src: 'dog-walking.png', ...HOME_SPOT };
-      render();
+      refreshScene();
 
       setTimeout(() => {
         animOverride = null; // back to normal mood-driven pose
-        render();
+        refreshScene();
       }, WALK_MS + 100);
 
     }, EAT_DRINK_HOLD_MS);
@@ -1098,7 +1102,7 @@ document.getElementById('addProjectBtn').addEventListener('click', () => {
 });
 
 render();
-setInterval(render, 60000); // keep the "time left" countdown current while the app is open
+setInterval(refreshScene, 60000); // keep the "time left" countdown current while the app is open
 setTimeout(advancePantFrame, PANT_FRAMES[0].hold); // kick off the idle panting loop
 
 const panelOverlay = document.getElementById('panelOverlay');
