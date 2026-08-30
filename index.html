@@ -233,6 +233,61 @@
     border: none; background: #d9776e; color: white; border-radius: 6px; padding: 3px 8px; font-size: 0.8rem;
   }
 
+  .week-board {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 10px;
+    margin-top: 10px;
+  }
+  .day-column {
+    flex: 0 0 auto;
+    width: 44%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 14px;
+    padding: 10px;
+    min-height: 160px;
+  }
+  .day-column h4 {
+    margin: 0 0 8px;
+    font-size: 0.85rem;
+    text-align: center;
+    opacity: 0.8;
+  }
+  .day-card {
+    background: rgba(255,250,240,0.85);
+    border-radius: 10px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .day-card .drag-handle {
+    cursor: grab;
+    opacity: 0.4;
+    font-size: 1rem;
+    touch-action: none;
+    padding: 2px 4px;
+  }
+  .day-card.dragging {
+    position: fixed;
+    pointer-events: none;
+    z-index: 40;
+    opacity: 0.85;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    width: 38%;
+  }
+  .day-card .task-name { flex: 1; font-size: 0.85rem; }
+  .day-card .task-name.done { text-decoration: line-through; opacity: 0.5; }
+  .day-column.drop-target { outline: 2px dashed var(--accent-dark); }
+  .day-add-form { display: flex; gap: 4px; margin-top: 4px; }
+  .day-add-form input { flex: 1; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
+  .day-add-form button { font-size: 0.8rem; padding: 6px 10px; border: none; background: var(--accent-dark); color: white; border-radius: 6px; }
+
   .progress-wrap { margin-top: 10px; }
   .progress-bar-bg {
     background: #eee2cf;
@@ -353,6 +408,7 @@
 <div class="fab-bar">
   <button class="fab-btn fab-icon" data-panel="tasks"></button>
   <button class="fab-btn fab-icon-shop" data-panel="shop"></button>
+  <button class="fab-btn" data-panel="week">📅</button>
 </div>
 
 <div class="panel-overlay" id="panelOverlay"></div>
@@ -396,6 +452,12 @@
   <div id="shopItems"></div>
 </div>
 
+<div class="panel" id="panel-week">
+  <div class="panel-header"><h2>Week Plan</h2><button class="panel-close" data-close>✕</button></div>
+  <p style="font-size:0.8rem; opacity:0.65; margin-top:-6px;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day</p>
+  <div class="week-board" id="weekBoard"></div>
+</div>
+
 <script>
 const STORAGE_KEY = 'cottageState';
 
@@ -429,8 +491,25 @@ function defaultState() {
     owned: [],
     itemPositions: {}, // per-item {left, top} in % — where you've dragged each owned item to
     todos: [], // one-off tasks — not daily habits, don't reset, stay until checked off
-    projects: [] // { id, name, subtasks: [{id, name, done}] } — subtasks earn no coins, completing the whole project earns a flat bonus
+    projects: [], // { id, name, subtasks: [{id, name, done}] } — subtasks earn no coins, completing the whole project earns a flat bonus
+    weekBoard: { weekStart: weekStartStr(), days: emptyWeekDays() } // one-time weekly plan — resets fresh each week
   };
+}
+
+const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+const DAY_LABELS = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
+
+function emptyWeekDays() {
+  const days = {};
+  DAYS.forEach(d => days[d] = []);
+  return days;
+}
+
+function weekStartStr() {
+  const d = new Date();
+  const day = d.getDay(); // 0 = Sunday
+  const sunday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
+  return sunday.getFullYear() + '-' + (sunday.getMonth() + 1) + '-' + sunday.getDate();
 }
 
 const SHOP_ITEMS = [
@@ -451,6 +530,10 @@ function loadState() {
   if (!state.itemPositions) state.itemPositions = {};
   if (!state.todos) state.todos = [];
   if (!state.projects) state.projects = [];
+  if (!state.weekBoard) state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() };
+  if (state.weekBoard.weekStart !== weekStartStr()) {
+    state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() }; // new week — plan resets fresh
+  }
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
     if (t.longestStreak === undefined) t.longestStreak = 0;
@@ -564,6 +647,7 @@ function render() {
   renderShop();
   renderTodos();
   renderProjects();
+  renderWeekBoard();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -740,6 +824,127 @@ function deleteSubtask(projectId, subId) {
 function deleteProject(projectId) {
   state.projects = state.projects.filter(p => p.id !== projectId);
   saveState();
+  render();
+}
+
+function renderWeekBoard() {
+  const board = document.getElementById('weekBoard');
+  board.innerHTML = '';
+  DAYS.forEach(day => {
+    const col = document.createElement('div');
+    col.className = 'day-column';
+    col.dataset.day = day;
+    col.innerHTML = `<h4>${DAY_LABELS[day]}</h4><div class="day-cards" id="daycards-${day}"></div>
+      <div class="day-add-form">
+        <input type="text" placeholder="Add task" id="newDayTask-${day}">
+        <button data-add-day="${day}">+</button>
+      </div>`;
+    board.appendChild(col);
+  });
+
+  DAYS.forEach(day => {
+    const cardsEl = document.getElementById(`daycards-${day}`);
+    state.weekBoard.days[day].forEach(task => {
+      const card = document.createElement('div');
+      card.className = 'day-card';
+      card.dataset.taskId = task.id;
+      card.dataset.day = day;
+      card.innerHTML = `
+        <span class="drag-handle">⠿</span>
+        <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
+        <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>`;
+      card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(day, task.id));
+      card.querySelector('.drag-handle').addEventListener('touchstart', e => startDayCardDrag(e, card, day, task.id), { passive: false });
+      card.querySelector('.drag-handle').addEventListener('mousedown', e => startDayCardDrag(e, card, day, task.id));
+      cardsEl.appendChild(card);
+    });
+  });
+
+  document.querySelectorAll('[data-add-day]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.addDay;
+      const input = document.getElementById(`newDayTask-${day}`);
+      const name = input.value.trim();
+      if (!name) return;
+      state.weekBoard.days[day].push({ id: 'day-' + Date.now(), name, done: false });
+      saveState();
+      render();
+    });
+  });
+}
+
+function toggleDayTask(day, taskId) {
+  const task = state.weekBoard.days[day].find(t => t.id === taskId);
+  if (!task) return;
+  task.done = !task.done;
+  state.coins += task.done ? 1 : -1;
+  saveState();
+  render();
+}
+
+// Drag a card between day columns
+let dayDrag = null;
+function startDayCardDrag(e, cardEl, fromDay, taskId) {
+  e.preventDefault();
+  const point = e.touches ? e.touches[0] : e;
+  const rect = cardEl.getBoundingClientRect();
+  dayDrag = { fromDay, taskId, offsetX: point.clientX - rect.left, offsetY: point.clientY - rect.top };
+
+  const clone = cardEl.cloneNode(true);
+  clone.classList.add('dragging');
+  clone.style.left = rect.left + 'px';
+  clone.style.top = rect.top + 'px';
+  clone.style.width = rect.width + 'px';
+  document.body.appendChild(clone);
+  dayDrag.el = clone;
+  cardEl.style.opacity = '0.3';
+  dayDrag.sourceCardEl = cardEl;
+
+  document.addEventListener('touchmove', dragDayMove, { passive: false });
+  document.addEventListener('touchend', dragDayEnd);
+  document.addEventListener('mousemove', dragDayMove);
+  document.addEventListener('mouseup', dragDayEnd);
+}
+
+function dragDayMove(e) {
+  if (!dayDrag) return;
+  e.preventDefault();
+  const point = e.touches ? e.touches[0] : e;
+  dayDrag.el.style.left = (point.clientX - dayDrag.offsetX) + 'px';
+  dayDrag.el.style.top = (point.clientY - dayDrag.offsetY) + 'px';
+
+  document.querySelectorAll('.day-column').forEach(col => col.classList.remove('drop-target'));
+  const under = document.elementFromPoint(point.clientX, point.clientY);
+  const col = under && under.closest('.day-column');
+  if (col) col.classList.add('drop-target');
+}
+
+function dragDayEnd(e) {
+  if (!dayDrag) return;
+  const point = e.changedTouches ? e.changedTouches[0] : e;
+  const under = document.elementFromPoint(point.clientX, point.clientY);
+  const col = under && under.closest('.day-column');
+
+  document.querySelectorAll('.day-column').forEach(c => c.classList.remove('drop-target'));
+  dayDrag.el.remove();
+  if (dayDrag.sourceCardEl) dayDrag.sourceCardEl.style.opacity = '';
+
+  if (col && col.dataset.day !== dayDrag.fromDay) {
+    const toDay = col.dataset.day;
+    const fromArr = state.weekBoard.days[dayDrag.fromDay];
+    const idx = fromArr.findIndex(t => t.id === dayDrag.taskId);
+    if (idx > -1) {
+      const [task] = fromArr.splice(idx, 1);
+      state.weekBoard.days[toDay].push(task);
+      saveState();
+    }
+  }
+
+  document.removeEventListener('touchmove', dragDayMove);
+  document.removeEventListener('touchend', dragDayEnd);
+  document.removeEventListener('mousemove', dragDayMove);
+  document.removeEventListener('mouseup', dragDayEnd);
+  dayDrag = null;
   render();
 }
 
