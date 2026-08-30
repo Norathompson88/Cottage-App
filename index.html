@@ -350,6 +350,13 @@
   <h3>Other habits — earn coins</h3>
   <div id="coinTasks"></div>
 
+  <h3>Today's To-Dos</h3>
+  <div id="todoList"></div>
+  <div class="add-task-form">
+    <input type="text" id="newTodoName" placeholder="Add a to-do">
+    <button id="addTodoBtn">Add to-do</button>
+  </div>
+
   <div class="manage-toggle" id="manageToggle">Manage tasks</div>
   <div class="manage" id="manageSection">
     <div id="manageList"></div>
@@ -398,7 +405,8 @@ function defaultState() {
       waterTime: null
     },
     owned: [],
-    itemPositions: {} // per-item {left, top} in % — where you've dragged each owned item to
+    itemPositions: {}, // per-item {left, top} in % — where you've dragged each owned item to
+    todos: [] // one-off tasks — not daily habits, don't reset, stay until checked off
   };
 }
 
@@ -418,6 +426,7 @@ function loadState() {
   }
   if (!state.owned) state.owned = [];
   if (!state.itemPositions) state.itemPositions = {};
+  if (!state.todos) state.todos = [];
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
     if (t.longestStreak === undefined) t.longestStreak = 0;
@@ -525,6 +534,7 @@ function render() {
   renderScene(computeMood(), overall);
 
   renderShop();
+  renderTodos();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -589,6 +599,32 @@ function streakLine(task) {
     goalPart = ` · 🎯 ${progress}/${task.goalDays} days`;
   }
   return `<div class="task-stats">🔥 ${task.streak} day streak${goalPart} · missed ${task.missedCount}</div>`;
+}
+
+function renderTodos() {
+  const list = document.getElementById('todoList');
+  list.innerHTML = '';
+  state.todos.forEach(todo => {
+    const card = document.createElement('div');
+    card.className = 'task';
+    card.innerHTML = `
+      <div class="task-row">
+        <div class="checkbox" data-id="${todo.id}"></div>
+        <div class="task-name">${todo.name}</div>
+        <div class="task-reward">+1</div>
+      </div>`;
+    card.querySelector('.checkbox').addEventListener('click', () => completeTodo(todo.id));
+    list.appendChild(card);
+  });
+}
+
+function completeTodo(id) {
+  const todo = state.todos.find(t => t.id === id);
+  if (!todo) return;
+  state.coins += 1;
+  state.todos = state.todos.filter(t => t.id !== id);
+  saveState();
+  render();
 }
 
 function renderShop() {
@@ -665,7 +701,7 @@ const ITEM_ZONE = { rug: 'floor', bed: 'floor', lamp: 'floor', ball: 'floor', ro
 // Rough bounding box of the visible wood floor in room.png (percentages).
 // An approximation, not a pixel-perfect trace of the floor's edges — tune if dragging feels
 // like it allows placement too high on the walls or not low enough near the bottom.
-const FLOOR_ZONE = { left: 3, top: 60, right: 97, bottom: 97 };
+const FLOOR_ZONE = { left: 3, top: 46, right: 97, bottom: 97 };
 
 function clampToZone(zone, leftPct, topPct) {
   const bounds = zone === 'floor' ? FLOOR_ZONE : FLOOR_ZONE; // only floor zone exists for now
@@ -903,6 +939,15 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
   });
   document.getElementById('newTaskName').value = '';
   document.getElementById('newTaskCoins').value = '';
+  saveState();
+  render();
+});
+
+document.getElementById('addTodoBtn').addEventListener('click', () => {
+  const name = document.getElementById('newTodoName').value.trim();
+  if (!name) return;
+  state.todos.push({ id: 'todo-' + Date.now(), name, coinValue: 1 });
+  document.getElementById('newTodoName').value = '';
   saveState();
   render();
 });
