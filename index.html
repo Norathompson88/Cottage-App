@@ -33,6 +33,13 @@
     pointer-events: none;
     transition: left 1.1s ease-in-out, top 1.1s ease-in-out, opacity 0.25s ease;
   }
+  .scene-item.draggable { pointer-events: auto; touch-action: none; cursor: grab; }
+  .scene-item.dragging {
+    transition: none !important;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.35));
+    z-index: 10;
+    cursor: grabbing;
+  }
   .scene-dog { z-index: 3; }
 
   .hud-coins {
@@ -390,7 +397,8 @@ function defaultState() {
       waterPending: 0,
       waterTime: null
     },
-    owned: []
+    owned: [],
+    itemPositions: {} // per-item {left, top} in % — where you've dragged each owned item to
   };
 }
 
@@ -409,6 +417,7 @@ function loadState() {
     state.pet = { feedPending: 0, feedTime: null, waterPending: 0, waterTime: null };
   }
   if (!state.owned) state.owned = [];
+  if (!state.itemPositions) state.itemPositions = {};
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
     if (t.longestStreak === undefined) t.longestStreak = 0;
@@ -609,6 +618,8 @@ function buyItem(id) {
   if (!item || state.owned.includes(id) || state.coins < item.cost) return;
   state.coins -= item.cost;
   state.owned.push(id);
+  const defaultPos = ITEM_DEFAULT_POS[id];
+  state.itemPositions[id] = { left: defaultPos.left, top: defaultPos.top };
   saveState();
   render();
 }
@@ -638,13 +649,31 @@ const WALK_MS = 1100;
 const EAT_DRINK_HOLD_MS = 5000; // how long the dog stays at the bowl, clearly visible
 
 // Where each shop item sits in the scene (percentages)
-const ITEM_PLACEMENT = {
+// Default spawn position for each item when first purchased (left/top/width in %).
+// Once placed, your dragged position is saved and this default is no longer used.
+const ITEM_DEFAULT_POS = {
   rug:  { left: 26, top: 78, width: 44 },
   bed:  { left: 4,  top: 70, width: 30 },
   lamp: { left: 76, top: 34, width: 20 },
   ball: { left: 60, top: 84, width: 10 },
-  toy:  { left: 70, top: 86, width: 14 } // "toy" = rope, kept separate id below
+  rope: { left: 70, top: 86, width: 14 }
 };
+
+// Which items can only go on the floor vs (later) on walls. All current items are floor-only.
+const ITEM_ZONE = { rug: 'floor', bed: 'floor', lamp: 'floor', ball: 'floor', rope: 'floor' };
+
+// Rough bounding box of the visible wood floor in room.png (percentages).
+// An approximation, not a pixel-perfect trace of the floor's edges — tune if dragging feels
+// like it allows placement too high on the walls or not low enough near the bottom.
+const FLOOR_ZONE = { left: 3, top: 60, right: 97, bottom: 97 };
+
+function clampToZone(zone, leftPct, topPct) {
+  const bounds = zone === 'floor' ? FLOOR_ZONE : FLOOR_ZONE; // only floor zone exists for now
+  return {
+    left: Math.min(Math.max(leftPct, bounds.left), bounds.right),
+    top: Math.min(Math.max(topPct, bounds.top), bounds.bottom)
+  };
+}
 
 let transientPose = null;
 let transientUntil = 0;
@@ -722,11 +751,13 @@ function renderScene(mood, overallMood) {
   Object.entries(itemEls).forEach(([id, el]) => {
     const owned = state.owned.includes(id);
     el.style.display = owned ? 'block' : 'none';
-    if (owned) {
-      const p = id === 'rope' ? ITEM_PLACEMENT.toy : ITEM_PLACEMENT[id];
-      el.style.left = p.left + '%';
-      el.style.top = p.top + '%';
-      el.style.width = p.width + '%';
+    el.classList.toggle('draggable', owned);
+    if (owned && !el.classList.contains('dragging')) {
+      const pos = state.itemPositions[id] || ITEM_DEFAULT_POS[id];
+      const width = ITEM_DEFAULT_POS[id].width;
+      el.style.left = pos.left + '%';
+      el.style.top = pos.top + '%';
+      el.style.width = width + '%';
     }
   });
 
@@ -895,6 +926,65 @@ document.querySelectorAll('.panel-close').forEach(btn => {
   btn.addEventListener('click', closeAllPanels);
 });
 panelOverlay.addEventListener('click', closeAllPanels);
+
+// Drag-and-drop placement for owned items
+function makeDraggable(el, itemId) {
+  let dragging = false;
+  let startX, startY, startLeftPct, startTopPct, sceneRect;
+
+  function pointerDown(e) {
+    if (!el.classList.contains('draggable')) return;
+    e.preventDefault();
+    const point = e.touches ? e.touches[0] : e;
+    dragging = true;
+    sceneRect = document.getElementById('scene').getBoundingClientRect();
+    startX = point.clientX;
+    startY = point.clientY;
+    const pos = state.itemPositions[itemId] || ITEM_DEFAULT_POS[itemId];
+    startLeftPct = pos.left;
+    startTopPct = pos.top;
+    el.classList.add('dragging');
+    document.addEventListener('touchmove', pointerMove, { passive: false });
+    document.addEventListener('touchend', pointerUp);
+    document.addEventListener('mousemove', pointerMove);
+    document.addEventListener('mouseup', pointerUp);
+  }
+
+  function pointerMove(e) {
+    if (!dragging) return;
+    e.preventDefault();
+    const point = e.touches ? e.touches[0] : e;
+    const dxPct = ((point.clientX - startX) / sceneRect.width) * 100;
+    const dyPct = ((point.clientY - startY) / sceneRect.height) * 100;
+    const zone = ITEM_ZONE[itemId] || 'floor';
+    const { left, top } = clampToZone(zone, startLeftPct + dxPct, startTopPct + dyPct);
+    el.style.left = left + '%';
+    el.style.top = top + '%';
+  }
+
+  function pointerUp() {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+    state.itemPositions[itemId] = {
+      left: parseFloat(el.style.left),
+      top: parseFloat(el.style.top)
+    };
+    saveState();
+    document.removeEventListener('touchmove', pointerMove);
+    document.removeEventListener('touchend', pointerUp);
+    document.removeEventListener('mousemove', pointerMove);
+    document.removeEventListener('mouseup', pointerUp);
+  }
+
+  el.addEventListener('touchstart', pointerDown, { passive: false });
+  el.addEventListener('mousedown', pointerDown);
+}
+
+['rug', 'bed', 'lamp', 'ball', 'rope'].forEach(id => {
+  const el = document.getElementById('item-' + id);
+  if (el) makeDraggable(el, id);
+});
 </script>
 </body>
 </html>
