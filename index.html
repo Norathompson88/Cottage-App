@@ -675,6 +675,25 @@ const DOG_POSES = {
 const SLEEP_IN_BED = { left: 10, top: 66, width: 34 };
 const HOME_SPOT = DOG_POSES.idle;
 
+// Idle panting animation: cycles through a few pant frames, then rests with mouth closed, then repeats.
+// Only used when the dog's baseline pose is 'idle' — paused (harmlessly) whenever another pose is showing.
+const PANT_FRAMES = [
+  { src: 'dog-idle.png',        left: 36, top: 56, width: 34, hold: 900 },  // tongue fully out
+  { src: 'dog-pant-mid.png',    left: 36, top: 56, width: 23, hold: 500 },  // tongue slightly out
+  { src: 'dog-idle.png',        left: 36, top: 56, width: 34, hold: 900 },
+  { src: 'dog-pant-mid.png',    left: 36, top: 56, width: 23, hold: 500 },
+  { src: 'dog-idle.png',        left: 36, top: 56, width: 34, hold: 900 },
+  { src: 'dog-pant-closed.png', left: 36, top: 56, width: 23, hold: 2500 } // resting, mouth closed
+];
+let pantFrameIndex = 0;
+let currentPantFrame = PANT_FRAMES[0];
+function advancePantFrame() {
+  pantFrameIndex = (pantFrameIndex + 1) % PANT_FRAMES.length;
+  currentPantFrame = PANT_FRAMES[pantFrameIndex];
+  render();
+  setTimeout(advancePantFrame, currentPantFrame.hold);
+}
+
 // Feeding station: where the bowls sit, and where the dog stands to use them.
 // All estimates — easy to nudge once you see it live.
 const FOOD_BOWL_SPOT  = { left: 30, top: 74, width: 20 };
@@ -826,10 +845,15 @@ function renderScene(mood, overallMood) {
     else if (isNight(currentHour())) poseName = 'sleeping';
     else poseName = 'idle';
 
-    const pose = DOG_POSES[poseName];
-    ({ src, left, top, width } = pose);
-    if (poseName === 'sleeping' && state.owned.includes('bed')) {
-      ({ left, top, width } = SLEEP_IN_BED);
+    if (poseName === 'idle') {
+      // panting loop takes over the idle frame instead of a single static image
+      ({ src, left, top, width } = currentPantFrame);
+    } else {
+      const pose = DOG_POSES[poseName];
+      ({ src, left, top, width } = pose);
+      if (poseName === 'sleeping' && state.owned.includes('bed')) {
+        ({ left, top, width } = SLEEP_IN_BED);
+      }
     }
   }
 
@@ -954,6 +978,7 @@ document.getElementById('addTodoBtn').addEventListener('click', () => {
 
 render();
 setInterval(render, 60000); // keep the "time left" countdown current while the app is open
+setTimeout(advancePantFrame, PANT_FRAMES[0].hold); // kick off the idle panting loop
 
 const panelOverlay = document.getElementById('panelOverlay');
 function openPanel(name) {
