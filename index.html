@@ -218,6 +218,21 @@
   .task-reward { font-size: 0.8rem; opacity: 0.55; }
   .task-stats { font-size: 0.75rem; opacity: 0.6; margin-top: 8px; }
 
+  .subtask-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .subtask-row .checkbox { width: 20px; height: 20px; font-size: 0.75rem; flex-shrink: 0; }
+  .subtask-row .task-name { font-size: 0.88rem; }
+  .subtask-row .del-sub {
+    border: none; background: none; opacity: 0.4; font-size: 0.8rem; padding: 2px 6px;
+  }
+  .del-project {
+    border: none; background: #d9776e; color: white; border-radius: 6px; padding: 3px 8px; font-size: 0.8rem;
+  }
+
   .progress-wrap { margin-top: 10px; }
   .progress-bar-bg {
     background: #eee2cf;
@@ -357,6 +372,13 @@
     <button id="addTodoBtn">Add to-do</button>
   </div>
 
+  <h3>Projects</h3>
+  <div id="projectList"></div>
+  <div class="add-task-form">
+    <input type="text" id="newProjectName" placeholder="New project name">
+    <button id="addProjectBtn">Add project</button>
+  </div>
+
   <div class="manage-toggle" id="manageToggle">Manage tasks</div>
   <div class="manage" id="manageSection">
     <div id="manageList"></div>
@@ -406,7 +428,8 @@ function defaultState() {
     },
     owned: [],
     itemPositions: {}, // per-item {left, top} in % — where you've dragged each owned item to
-    todos: [] // one-off tasks — not daily habits, don't reset, stay until checked off
+    todos: [], // one-off tasks — not daily habits, don't reset, stay until checked off
+    projects: [] // { id, name, subtasks: [{id, name, done}] } — subtasks earn no coins, completing the whole project earns a flat bonus
   };
 }
 
@@ -427,6 +450,7 @@ function loadState() {
   if (!state.owned) state.owned = [];
   if (!state.itemPositions) state.itemPositions = {};
   if (!state.todos) state.todos = [];
+  if (!state.projects) state.projects = [];
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
     if (t.longestStreak === undefined) t.longestStreak = 0;
@@ -535,6 +559,7 @@ function render() {
 
   renderShop();
   renderTodos();
+  renderProjects();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -623,6 +648,93 @@ function completeTodo(id) {
   if (!todo) return;
   state.coins += 1;
   state.todos = state.todos.filter(t => t.id !== id);
+  saveState();
+  render();
+}
+
+const PROJECT_COMPLETION_COINS = 5;
+
+function renderProjects() {
+  const list = document.getElementById('projectList');
+  list.innerHTML = '';
+  state.projects.forEach(project => {
+    const total = project.subtasks.length;
+    const done = project.subtasks.filter(s => s.done).length;
+    const pct = total ? Math.round((done / total) * 100) : 0;
+
+    const card = document.createElement('div');
+    card.className = 'task';
+    card.innerHTML = `
+      <div class="task-row">
+        <div class="task-name">${project.name}</div>
+        <button class="del-project" data-id="${project.id}">Delete</button>
+      </div>
+      <div class="progress-wrap">
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%; background:var(--accent)"></div></div>
+        <div class="progress-label"><span>${done}/${total} done</span><span>+${PROJECT_COMPLETION_COINS} coins when complete</span></div>
+      </div>
+      <div class="subtask-list" id="subtasks-${project.id}"></div>
+      <div class="quick-add">
+        <span class="custom-add">
+          <input type="text" placeholder="Add item" id="newSubtask-${project.id}">
+          <button data-add-subtask="${project.id}">Add</button>
+        </span>
+      </div>`;
+
+    const subtaskListEl = card.querySelector(`#subtasks-${project.id}`);
+    project.subtasks.forEach(sub => {
+      const row = document.createElement('div');
+      row.className = 'subtask-row';
+      row.innerHTML = `
+        <div class="checkbox ${sub.done ? 'done' : ''}">${sub.done ? '✓' : ''}</div>
+        <div class="task-name ${sub.done ? 'done' : ''}" style="flex:1">${sub.name}</div>
+        <button class="del-sub">✕</button>`;
+      row.querySelector('.checkbox').addEventListener('click', () => toggleSubtask(project.id, sub.id));
+      row.querySelector('.del-sub').addEventListener('click', () => deleteSubtask(project.id, sub.id));
+      subtaskListEl.appendChild(row);
+    });
+
+    card.querySelector('.del-project').addEventListener('click', () => deleteProject(project.id));
+    card.querySelector('[data-add-subtask]').addEventListener('click', () => {
+      const input = document.getElementById(`newSubtask-${project.id}`);
+      const name = input.value.trim();
+      if (!name) return;
+      project.subtasks.push({ id: 'sub-' + Date.now(), name, done: false });
+      saveState();
+      render();
+    });
+
+    list.appendChild(card);
+  });
+}
+
+function toggleSubtask(projectId, subId) {
+  const project = state.projects.find(p => p.id === projectId);
+  if (!project) return;
+  const sub = project.subtasks.find(s => s.id === subId);
+  if (!sub) return;
+  sub.done = !sub.done;
+
+  const allDone = project.subtasks.length > 0 && project.subtasks.every(s => s.done);
+  if (allDone) {
+    state.coins += PROJECT_COMPLETION_COINS;
+    state.projects = state.projects.filter(p => p.id !== projectId);
+    triggerTransient('excited', 4000);
+  }
+  saveState();
+  render();
+}
+
+function deleteSubtask(projectId, subId) {
+  const project = state.projects.find(p => p.id === projectId);
+  if (!project) return;
+  project.subtasks = project.subtasks.filter(s => s.id !== subId);
+  saveState();
+  render();
+}
+
+function deleteProject(projectId) {
+  state.projects = state.projects.filter(p => p.id !== projectId);
   saveState();
   render();
 }
@@ -972,6 +1084,15 @@ document.getElementById('addTodoBtn').addEventListener('click', () => {
   if (!name) return;
   state.todos.push({ id: 'todo-' + Date.now(), name, coinValue: 1 });
   document.getElementById('newTodoName').value = '';
+  saveState();
+  render();
+});
+
+document.getElementById('addProjectBtn').addEventListener('click', () => {
+  const name = document.getElementById('newProjectName').value.trim();
+  if (!name) return;
+  state.projects.push({ id: 'project-' + Date.now(), name, subtasks: [] });
+  document.getElementById('newProjectName').value = '';
   saveState();
   render();
 });
