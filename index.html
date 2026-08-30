@@ -81,17 +81,18 @@
     z-index: 6;
   }
   .fab-btn {
-    width: 54px; height: 54px;
+    width: 66px; height: 66px;
     border-radius: 50%;
     border: none;
     background: rgba(255,250,240,0.92);
     backdrop-filter: blur(4px);
-    font-size: 1.5rem;
+    font-size: 1.7rem;
     box-shadow: 0 3px 10px rgba(0,0,0,0.2);
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
+    padding: 0;
   }
-  .fab-btn img { width: 60%; height: 60%; object-fit: contain; }
+  .fab-btn img { width: 100%; height: 100%; object-fit: cover; }
 
   .panel-overlay {
     position: fixed; inset: 0;
@@ -604,24 +605,24 @@ function buyItem(id) {
 // Where each dog pose sits within the scene (percentages of scene width/height).
 // These are estimates based on how each pose is framed — nudge left/top/width if the dog looks off after you see it live.
 const DOG_POSES = {
-  idle:     { src: 'dog-idle.png',     left: 36, top: 56, width: 28 },
-  eating:   { src: 'dog-eating.png',   left: 30, top: 60, width: 32 },
-  drinking: { src: 'dog-drinking.png', left: 30, top: 60, width: 32 },
-  tired:    { src: 'dog-tired.png',    left: 26, top: 66, width: 36 },
-  sad:      { src: 'dog-sad.png',      left: 34, top: 58, width: 28 },
-  sleeping: { src: 'dog-sleeping.png', left: 30, top: 70, width: 34 },
-  excited:  { src: 'dog-excited.png',  left: 28, top: 60, width: 34 }
+  idle:     { src: 'dog-idle.png',     left: 36, top: 56, width: 34 },
+  eating:   { src: 'dog-eating.png',   left: 30, top: 60, width: 38 },
+  drinking: { src: 'dog-drinking.png', left: 30, top: 60, width: 38 },
+  tired:    { src: 'dog-tired.png',    left: 26, top: 66, width: 43 },
+  sad:      { src: 'dog-sad.png',      left: 34, top: 58, width: 34 },
+  sleeping: { src: 'dog-sleeping.png', left: 30, top: 70, width: 41 },
+  excited:  { src: 'dog-excited.png',  left: 28, top: 60, width: 41 }
 };
 // Where the dog sleeps if you own the pet bed, instead of its default sleeping spot
-const SLEEP_IN_BED = { left: 10, top: 66, width: 28 };
+const SLEEP_IN_BED = { left: 10, top: 66, width: 34 };
 const HOME_SPOT = DOG_POSES.idle;
 
 // Feeding station: where the bowls sit, and where the dog stands to use them.
 // All estimates — easy to nudge once you see it live.
 const FOOD_BOWL_SPOT  = { left: 30, top: 74, width: 20 };
 const WATER_BOWL_SPOT = { left: 52, top: 74, width: 20 };
-const EAT_STAND_SPOT   = { left: 36, top: 76, width: 30 };
-const DRINK_STAND_SPOT = { left: 52, top: 76, width: 30 };
+const EAT_STAND_SPOT   = { left: 34, top: 74, width: 36 };
+const DRINK_STAND_SPOT = { left: 50, top: 74, width: 36 };
 const WALK_MS = 1100;
 const EAT_DRINK_HOLD_MS = 5000; // how long the dog stays at the bowl, clearly visible
 
