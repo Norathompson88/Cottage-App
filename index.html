@@ -283,10 +283,28 @@
   }
   .day-card .task-name { flex: 1; font-size: 0.85rem; }
   .day-card .task-name.done { text-decoration: line-through; opacity: 0.5; }
+  .day-card-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: white;
+    border-radius: 6px;
+    padding: 2px 6px;
+    white-space: nowrap;
+  }
   .day-column.drop-target { outline: 2px dashed var(--accent-dark); }
   .day-add-form { display: flex; gap: 4px; margin-top: 4px; }
   .day-add-form input { flex: 1; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
   .day-add-form button { font-size: 0.8rem; padding: 6px 10px; border: none; background: var(--accent-dark); color: white; border-radius: 6px; }
+
+  .project-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
+  .project-subitem { font-size: 0.78rem; opacity: 0.8; display: flex; align-items: center; gap: 6px; margin-top: 5px; }
+  .project-subitem .done-mark { opacity: 0.5; text-decoration: line-through; }
+  .project-subitem .day-badge { font-size: 0.65rem; opacity: 0.55; background: rgba(0,0,0,0.06); border-radius: 5px; padding: 1px 5px; }
+  .project-subitem .del-sub { border: none; background: none; opacity: 0.4; font-size: 0.75rem; margin-left: auto; }
+  .project-add-row { display: flex; gap: 6px; margin-top: 8px; }
+  .project-add-row input { flex: 1; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
+  .project-add-row select { font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
+  .project-add-row button { font-size: 0.8rem; padding: 6px 10px; border: none; background: var(--accent-dark); color: white; border-radius: 6px; }
 
   .progress-wrap { margin-top: 10px; }
   .progress-bar-bg {
@@ -408,7 +426,6 @@
 <div class="fab-bar">
   <button class="fab-btn fab-icon" data-panel="tasks"></button>
   <button class="fab-btn fab-icon-shop" data-panel="shop"></button>
-  <button class="fab-btn" data-panel="week">📅</button>
 </div>
 
 <div class="panel-overlay" id="panelOverlay"></div>
@@ -421,12 +438,9 @@
   <h3>Other habits — earn coins</h3>
   <div id="coinTasks"></div>
 
-  <h3>Today's To-Dos</h3>
-  <div id="todoList"></div>
-  <div class="add-task-form">
-    <input type="text" id="newTodoName" placeholder="Add a to-do">
-    <button id="addTodoBtn">Add to-do</button>
-  </div>
+  <h3>Week Plan</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day</p>
+  <div class="week-board" id="weekBoard"></div>
 
   <h3>Projects</h3>
   <div id="projectList"></div>
@@ -450,12 +464,6 @@
 <div class="panel" id="panel-shop">
   <div class="panel-header"><h2>Shop</h2><button class="panel-close" data-close>✕</button></div>
   <div id="shopItems"></div>
-</div>
-
-<div class="panel" id="panel-week">
-  <div class="panel-header"><h2>Week Plan</h2><button class="panel-close" data-close>✕</button></div>
-  <p style="font-size:0.8rem; opacity:0.65; margin-top:-6px;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day</p>
-  <div class="week-board" id="weekBoard"></div>
 </div>
 
 <script>
@@ -645,7 +653,6 @@ function render() {
   refreshScene();
 
   renderShop();
-  renderTodos();
   renderProjects();
   renderWeekBoard();
 
@@ -714,80 +721,68 @@ function streakLine(task) {
   return `<div class="task-stats">🔥 ${task.streak} day streak${goalPart} · missed ${task.missedCount}</div>`;
 }
 
-function renderTodos() {
-  const list = document.getElementById('todoList');
-  list.innerHTML = '';
-  state.todos.forEach(todo => {
-    const card = document.createElement('div');
-    card.className = 'task';
-    card.innerHTML = `
-      <div class="task-row">
-        <div class="checkbox" data-id="${todo.id}"></div>
-        <div class="task-name">${todo.name}</div>
-        <div class="task-reward">+1</div>
-      </div>`;
-    card.querySelector('.checkbox').addEventListener('click', () => completeTodo(todo.id));
-    list.appendChild(card);
-  });
-}
-
-function completeTodo(id) {
-  const todo = state.todos.find(t => t.id === id);
-  if (!todo) return;
-  state.coins += 1;
-  state.todos = state.todos.filter(t => t.id !== id);
-  saveState();
-  render();
-}
-
 const PROJECT_COMPLETION_COINS = 5;
+const PROJECT_COLORS = ['#c47a4f', '#6fa8c4', '#7a9e7e', '#b06a9a', '#d4a017', '#8a7a9e'];
+
+function getProjectSubtasks(projectId) {
+  const result = [];
+  DAYS.forEach(day => {
+    state.weekBoard.days[day].forEach(t => {
+      if (t.projectId === projectId) result.push({ ...t, day });
+    });
+  });
+  return result;
+}
 
 function renderProjects() {
   const list = document.getElementById('projectList');
   list.innerHTML = '';
   state.projects.forEach(project => {
-    const total = project.subtasks.length;
-    const done = project.subtasks.filter(s => s.done).length;
+    const subtasks = getProjectSubtasks(project.id);
+    const total = subtasks.length;
+    const done = subtasks.filter(s => s.done).length;
     const pct = total ? Math.round((done / total) * 100) : 0;
 
     const card = document.createElement('div');
     card.className = 'task';
     card.innerHTML = `
       <div class="task-row">
+        <span class="project-swatch" style="background:${project.color}"></span>
         <div class="task-name">${project.name}</div>
         <button class="del-project" data-id="${project.id}">Delete</button>
       </div>
       <div class="progress-wrap">
-        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%; background:var(--accent)"></div></div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%; background:${project.color}"></div></div>
         <div class="progress-label"><span>${done}/${total} done</span><span>+${PROJECT_COMPLETION_COINS} coins when complete</span></div>
       </div>
-      <div class="subtask-list" id="subtasks-${project.id}"></div>
-      <div class="quick-add">
-        <span class="custom-add">
-          <input type="text" placeholder="Add item" id="newSubtask-${project.id}">
-          <button data-add-subtask="${project.id}">Add</button>
-        </span>
+      <div id="subitems-${project.id}"></div>
+      <div class="project-add-row">
+        <input type="text" placeholder="New item" id="newSubtask-${project.id}">
+        <select id="subtaskDay-${project.id}">
+          ${DAYS.map(d => `<option value="${d}">${DAY_LABELS[d]}</option>`).join('')}
+        </select>
+        <button data-add-subtask="${project.id}">Add</button>
       </div>`;
 
-    const subtaskListEl = card.querySelector(`#subtasks-${project.id}`);
-    project.subtasks.forEach(sub => {
+    const subitemsEl = card.querySelector(`#subitems-${project.id}`);
+    subtasks.forEach(sub => {
       const row = document.createElement('div');
-      row.className = 'subtask-row';
+      row.className = 'project-subitem';
       row.innerHTML = `
-        <div class="checkbox ${sub.done ? 'done' : ''}">${sub.done ? '✓' : ''}</div>
-        <div class="task-name ${sub.done ? 'done' : ''}" style="flex:1">${sub.name}</div>
+        <span class="${sub.done ? 'done-mark' : ''}">${sub.name}</span>
+        <span class="day-badge">${DAY_LABELS[sub.day]}</span>
         <button class="del-sub">✕</button>`;
-      row.querySelector('.checkbox').addEventListener('click', () => toggleSubtask(project.id, sub.id));
-      row.querySelector('.del-sub').addEventListener('click', () => deleteSubtask(project.id, sub.id));
-      subtaskListEl.appendChild(row);
+      row.querySelector('.del-sub').addEventListener('click', () => deleteSubtask(project.id, sub.day, sub.id));
+      subitemsEl.appendChild(row);
     });
 
     card.querySelector('.del-project').addEventListener('click', () => deleteProject(project.id));
     card.querySelector('[data-add-subtask]').addEventListener('click', () => {
       const input = document.getElementById(`newSubtask-${project.id}`);
+      const day = document.getElementById(`subtaskDay-${project.id}`).value;
       const name = input.value.trim();
       if (!name) return;
-      project.subtasks.push({ id: 'sub-' + Date.now(), name, done: false });
+      state.weekBoard.days[day].push({ id: 'day-' + Date.now(), name, done: false, projectId: project.id });
       saveState();
       render();
     });
@@ -796,27 +791,19 @@ function renderProjects() {
   });
 }
 
-function toggleSubtask(projectId, subId) {
+function checkProjectCompletion(projectId) {
   const project = state.projects.find(p => p.id === projectId);
   if (!project) return;
-  const sub = project.subtasks.find(s => s.id === subId);
-  if (!sub) return;
-  sub.done = !sub.done;
-
-  const allDone = project.subtasks.length > 0 && project.subtasks.every(s => s.done);
-  if (allDone) {
+  const subtasks = getProjectSubtasks(projectId);
+  if (subtasks.length > 0 && subtasks.every(s => s.done)) {
     state.coins += PROJECT_COMPLETION_COINS;
     state.projects = state.projects.filter(p => p.id !== projectId);
     triggerTransient('excited', 4000);
   }
-  saveState();
-  render();
 }
 
-function deleteSubtask(projectId, subId) {
-  const project = state.projects.find(p => p.id === projectId);
-  if (!project) return;
-  project.subtasks = project.subtasks.filter(s => s.id !== subId);
+function deleteSubtask(projectId, day, subId) {
+  state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== subId);
   saveState();
   render();
 }
@@ -845,6 +832,7 @@ function renderWeekBoard() {
   DAYS.forEach(day => {
     const cardsEl = document.getElementById(`daycards-${day}`);
     state.weekBoard.days[day].forEach(task => {
+      const project = task.projectId ? state.projects.find(p => p.id === task.projectId) : null;
       const card = document.createElement('div');
       card.className = 'day-card';
       card.dataset.taskId = task.id;
@@ -852,7 +840,10 @@ function renderWeekBoard() {
       card.innerHTML = `
         <span class="drag-handle">⠿</span>
         <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
-        <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>`;
+        <div style="flex:1">
+          ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span><br>` : ''}
+          <span class="task-name ${task.done ? 'done' : ''}">${task.name}</span>
+        </div>`;
       card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(day, task.id));
       card.querySelector('.drag-handle').addEventListener('touchstart', e => startDayCardDrag(e, card, day, task.id), { passive: false });
       card.querySelector('.drag-handle').addEventListener('mousedown', e => startDayCardDrag(e, card, day, task.id));
@@ -866,7 +857,7 @@ function renderWeekBoard() {
       const input = document.getElementById(`newDayTask-${day}`);
       const name = input.value.trim();
       if (!name) return;
-      state.weekBoard.days[day].push({ id: 'day-' + Date.now(), name, done: false });
+      state.weekBoard.days[day].push({ id: 'day-' + Date.now(), name, done: false, projectId: null });
       saveState();
       render();
     });
@@ -877,7 +868,11 @@ function toggleDayTask(day, taskId) {
   const task = state.weekBoard.days[day].find(t => t.id === taskId);
   if (!task) return;
   task.done = !task.done;
-  state.coins += task.done ? 1 : -1;
+  if (task.projectId) {
+    if (task.done) checkProjectCompletion(task.projectId);
+  } else {
+    state.coins += task.done ? 1 : -1;
+  }
   saveState();
   render();
 }
@@ -1288,19 +1283,11 @@ document.getElementById('addTaskBtn').addEventListener('click', () => {
   render();
 });
 
-document.getElementById('addTodoBtn').addEventListener('click', () => {
-  const name = document.getElementById('newTodoName').value.trim();
-  if (!name) return;
-  state.todos.push({ id: 'todo-' + Date.now(), name, coinValue: 1 });
-  document.getElementById('newTodoName').value = '';
-  saveState();
-  render();
-});
-
 document.getElementById('addProjectBtn').addEventListener('click', () => {
   const name = document.getElementById('newProjectName').value.trim();
   if (!name) return;
-  state.projects.push({ id: 'project-' + Date.now(), name, subtasks: [] });
+  const color = PROJECT_COLORS[state.projects.length % PROJECT_COLORS.length];
+  state.projects.push({ id: 'project-' + Date.now(), name, color });
   document.getElementById('newProjectName').value = '';
   saveState();
   render();
