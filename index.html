@@ -248,6 +248,7 @@
     border-radius: 14px;
     padding: 10px;
     min-height: 160px;
+    overflow-x: hidden;
   }
   .day-column h4 {
     margin: 0 0 8px;
@@ -265,6 +266,7 @@
     align-items: center;
     gap: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    max-width: 100%;
   }
   .day-card .drag-handle {
     cursor: grab;
@@ -272,6 +274,7 @@
     font-size: 1rem;
     touch-action: none;
     padding: 2px 4px;
+    flex-shrink: 0;
   }
   .day-card.dragging {
     position: fixed;
@@ -281,7 +284,7 @@
     box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     width: 38%;
   }
-  .day-card .task-name { flex: 1; font-size: 0.85rem; }
+  .day-card .task-name { flex: 1; min-width: 0; font-size: 0.85rem; overflow-wrap: break-word; }
   .day-card .task-name.done { text-decoration: line-through; opacity: 0.5; }
   .day-card-label {
     font-size: 0.65rem;
@@ -289,12 +292,16 @@
     color: white;
     border-radius: 6px;
     padding: 2px 6px;
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .day-column.drop-target { outline: 2px dashed var(--accent-dark); }
   .day-add-form { display: flex; gap: 4px; margin-top: 4px; }
-  .day-add-form input { flex: 1; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
-  .day-add-form button { font-size: 0.8rem; padding: 6px 10px; border: none; background: var(--accent-dark); color: white; border-radius: 6px; }
+  .day-add-form input { flex: 1; min-width: 0; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
+  .day-add-form button { flex-shrink: 0; font-size: 0.8rem; padding: 6px 10px; border: none; background: var(--accent-dark); color: white; border-radius: 6px; }
 
   .project-swatch { width: 12px; height: 12px; border-radius: 50%; display: inline-block; margin-right: 6px; flex-shrink: 0; }
   .project-subitem { font-size: 0.78rem; opacity: 0.8; display: flex; align-items: center; gap: 6px; margin-top: 5px; }
@@ -380,13 +387,16 @@
     margin-top: 10px;
     font-size: 0.85rem;
   }
-  .add-task-form input, .add-task-form select {
+  .add-task-form input[type="text"], .add-task-form input[type="number"], .add-task-form select {
     width: 100%;
     margin-top: 6px;
     padding: 6px 8px;
     border: 1px solid #ddd;
     border-radius: 6px;
   }
+  .task-frequency-row { display: flex; gap: 16px; margin-top: 8px; }
+  .task-frequency-row label { display: flex; align-items: center; gap: 5px; font-size: 0.85rem; }
+  .task-frequency-row input[type="radio"] { width: auto; margin: 0; }
   .add-task-form button {
     margin-top: 10px;
     width: 100%;
@@ -455,13 +465,9 @@
     <div class="add-task-form">
       <strong>Add a task</strong>
       <input type="text" id="newTaskName" placeholder="Task name">
-      <div style="display:flex; gap:8px; margin-top:6px;">
-        <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem;">
-          <input type="radio" name="taskFrequency" value="daily" checked id="freqDaily"> Daily
-        </label>
-        <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem;">
-          <input type="radio" name="taskFrequency" value="oneTime" id="freqOneTime"> One-time
-        </label>
+      <div class="task-frequency-row">
+        <label><input type="radio" name="taskFrequency" value="daily" checked id="freqDaily"> Daily</label>
+        <label><input type="radio" name="taskFrequency" value="oneTime" id="freqOneTime"> One-time</label>
       </div>
       <select id="newTaskDay" style="display:none; margin-top:6px;">
         <option value="sun">Sun</option>
@@ -857,7 +863,7 @@ function renderWeekBoard() {
       card.innerHTML = `
         <span class="drag-handle">⠿</span>
         <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
-        <div style="flex:1">
+        <div style="flex:1; min-width:0;">
           ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span><br>` : ''}
           <span class="task-name ${task.done ? 'done' : ''}">${task.name}</span>
         </div>`;
