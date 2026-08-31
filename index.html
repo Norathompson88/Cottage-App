@@ -453,9 +453,25 @@
   <div class="manage" id="manageSection">
     <div id="manageList"></div>
     <div class="add-task-form">
-      <strong>Add a coin task</strong>
+      <strong>Add a task</strong>
       <input type="text" id="newTaskName" placeholder="Task name">
-      <input type="number" id="newTaskCoins" placeholder="Coins earned">
+      <div style="display:flex; gap:8px; margin-top:6px;">
+        <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem;">
+          <input type="radio" name="taskFrequency" value="daily" checked id="freqDaily"> Daily
+        </label>
+        <label style="display:flex; align-items:center; gap:4px; font-size:0.85rem;">
+          <input type="radio" name="taskFrequency" value="oneTime" id="freqOneTime"> One-time
+        </label>
+      </div>
+      <select id="newTaskDay" style="display:none; margin-top:6px;">
+        <option value="sun">Sun</option>
+        <option value="mon">Mon</option>
+        <option value="tue">Tue</option>
+        <option value="wed">Wed</option>
+        <option value="thu">Thu</option>
+        <option value="fri">Fri</option>
+        <option value="sat">Sat</option>
+      </select>
       <button id="addTaskBtn">Add task</button>
     </div>
   </div>
@@ -486,9 +502,9 @@ function defaultState() {
     tasks: [
       { id: 'protein', name: 'Protein', role: 'food', type: 'progress', target: 100, unit: 'g', current: 0, done: false, steps: [10, 25] },
       { id: 'water', name: 'Water', role: 'water', type: 'progress', target: 80, unit: 'oz', current: 0, done: false, steps: [8, 16] },
-      { id: 'supplements', name: 'Take supplements', role: 'coin', type: 'checkbox', coinValue: 5, done: false },
-      { id: 'workout', name: 'Workout', role: 'coin', type: 'checkbox', coinValue: 10, done: false },
-      { id: 'reading', name: 'Read 30 minutes', role: 'coin', type: 'checkbox', coinValue: 10, done: false }
+      { id: 'supplements', name: 'Take supplements', role: 'coin', type: 'checkbox', coinValue: 1, done: false },
+      { id: 'workout', name: 'Workout', role: 'coin', type: 'checkbox', coinValue: 1, done: false },
+      { id: 'reading', name: 'Read 30 minutes', role: 'coin', type: 'checkbox', coinValue: 1, done: false }
     ],
     pet: {
       feedPending: 0,   // grams logged since the last feeding was triggered
@@ -547,6 +563,7 @@ function loadState() {
     if (t.longestStreak === undefined) t.longestStreak = 0;
     if (t.missedCount === undefined) t.missedCount = 0;
     if (t.goalDays === undefined) t.goalDays = null;
+    if (t.role === 'coin') t.coinValue = 1; // flat 1 coin for every additional task, no exceptions
   });
 
   if (state.date !== todayStr()) {
@@ -1227,7 +1244,7 @@ function renderManage() {
     if (task.type === 'checkbox') {
       row.innerHTML = `
         <input type="text" value="${task.name}" data-field="name" data-id="${task.id}">
-        <input type="number" value="${task.coinValue}" data-field="coinValue" data-id="${task.id}">
+        <span style="font-size:0.8rem; opacity:0.6; white-space:nowrap;">+1 coin</span>
         <input type="number" value="${task.goalDays ?? ''}" placeholder="goal days" data-field="goalDays" data-id="${task.id}">
         <button class="del" data-del="${task.id}">✕</button>`;
     } else {
@@ -1270,17 +1287,32 @@ document.getElementById('manageToggle').addEventListener('click', () => {
 
 document.getElementById('addTaskBtn').addEventListener('click', () => {
   const name = document.getElementById('newTaskName').value.trim();
-  const coins = parseFloat(document.getElementById('newTaskCoins').value);
-  if (!name || isNaN(coins)) return;
-  state.tasks.push({
-    id: 'task-' + Date.now(),
-    name, role: 'coin', type: 'checkbox', coinValue: coins, done: false,
-    streak: 0, longestStreak: 0, missedCount: 0, goalDays: null
-  });
+  if (!name) return;
+  const isOneTime = document.getElementById('freqOneTime').checked;
+
+  if (isOneTime) {
+    const day = document.getElementById('newTaskDay').value;
+    state.weekBoard.days[day].push({ id: 'day-' + Date.now(), name, done: false, projectId: null });
+  } else {
+    state.tasks.push({
+      id: 'task-' + Date.now(),
+      name, role: 'coin', type: 'checkbox', coinValue: 1, done: false,
+      streak: 0, longestStreak: 0, missedCount: 0, goalDays: null
+    });
+  }
+
   document.getElementById('newTaskName').value = '';
-  document.getElementById('newTaskCoins').value = '';
+  document.getElementById('freqDaily').checked = true;
+  document.getElementById('newTaskDay').style.display = 'none';
   saveState();
   render();
+});
+
+document.querySelectorAll('input[name="taskFrequency"]').forEach(radio => {
+  radio.addEventListener('change', () => {
+    document.getElementById('newTaskDay').style.display =
+      document.getElementById('freqOneTime').checked ? 'block' : 'none';
+  });
 });
 
 document.getElementById('addProjectBtn').addEventListener('click', () => {
