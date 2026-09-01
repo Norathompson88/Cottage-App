@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>My Cottage</title>
 <style>
   :root {
@@ -297,6 +300,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .day-card-edit, .day-card-del {
+    border: none;
+    background: none;
+    opacity: 0.4;
+    font-size: 0.78rem;
+    padding: 2px 3px;
+    flex-shrink: 0;
   }
   .day-column.drop-target { outline: 2px dashed var(--accent-dark); }
   .day-add-form { display: flex; gap: 4px; margin-top: 4px; }
@@ -866,8 +877,12 @@ function renderWeekBoard() {
         <div style="flex:1; min-width:0;">
           ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span><br>` : ''}
           <span class="task-name ${task.done ? 'done' : ''}">${task.name}</span>
-        </div>`;
+        </div>
+        <button class="day-card-edit">✎</button>
+        <button class="day-card-del">✕</button>`;
       card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(day, task.id));
+      card.querySelector('.day-card-edit').addEventListener('click', () => editDayTask(day, task.id));
+      card.querySelector('.day-card-del').addEventListener('click', () => deleteDayTask(day, task.id));
       card.querySelector('.drag-handle').addEventListener('touchstart', e => startDayCardDrag(e, card, day, task.id), { passive: false });
       card.querySelector('.drag-handle').addEventListener('mousedown', e => startDayCardDrag(e, card, day, task.id));
       cardsEl.appendChild(card);
@@ -896,6 +911,24 @@ function toggleDayTask(day, taskId) {
   } else {
     state.coins += task.done ? 1 : -1;
   }
+  saveState();
+  render();
+}
+
+function editDayTask(day, taskId) {
+  const task = state.weekBoard.days[day].find(t => t.id === taskId);
+  if (!task) return;
+  const newName = window.prompt('Edit task name', task.name);
+  if (newName === null) return;
+  const trimmed = newName.trim();
+  if (!trimmed) return;
+  task.name = trimmed;
+  saveState();
+  render();
+}
+
+function deleteDayTask(day, taskId) {
+  state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== taskId);
   saveState();
   render();
 }
@@ -1184,15 +1217,10 @@ function renderScene(mood, overallMood) {
     else if (isNight(currentHour())) poseName = 'sleeping';
     else poseName = 'idle';
 
-    if (poseName === 'idle') {
-      // panting loop takes over the idle frame instead of a single static image
-      ({ src, left, top, width } = currentPantFrame);
-    } else {
-      const pose = DOG_POSES[poseName];
-      ({ src, left, top, width } = pose);
-      if (poseName === 'sleeping' && state.owned.includes('bed')) {
-        ({ left, top, width } = SLEEP_IN_BED);
-      }
+    const pose = DOG_POSES[poseName];
+    ({ src, left, top, width } = pose);
+    if (poseName === 'sleeping' && state.owned.includes('bed')) {
+      ({ left, top, width } = SLEEP_IN_BED);
     }
   }
 
@@ -1333,7 +1361,8 @@ document.getElementById('addProjectBtn').addEventListener('click', () => {
 
 render();
 setInterval(refreshScene, 60000); // keep the "time left" countdown current while the app is open
-setTimeout(advancePantFrame, PANT_FRAMES[0].hold); // kick off the idle panting loop
+// idle panting loop disabled — dog now uses a single static idle image
+// setTimeout(advancePantFrame, PANT_FRAMES[0].hold);
 
 const panelOverlay = document.getElementById('panelOverlay');
 function openPanel(name) {
