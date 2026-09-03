@@ -460,7 +460,7 @@
   <div id="coinTasks"></div>
 
   <h3>Week Plan</h3>
-  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day</p>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day, or drop it higher/lower to reorder within a day</p>
   <div class="week-board" id="weekBoard"></div>
 
   <h3>Projects</h3>
@@ -970,6 +970,17 @@ function dragDayMove(e) {
   if (col) col.classList.add('drop-target');
 }
 
+function getDropIndex(day, clientY, excludeTaskId) {
+  const cardsEl = document.getElementById(`daycards-${day}`);
+  const cardEls = Array.from(cardsEl.querySelectorAll('.day-card')).filter(el => el.dataset.taskId !== excludeTaskId);
+  for (let i = 0; i < cardEls.length; i++) {
+    const rect = cardEls[i].getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    if (clientY < midpoint) return i;
+  }
+  return cardEls.length;
+}
+
 function dragDayEnd(e) {
   if (!dayDrag) return;
   const point = e.changedTouches ? e.changedTouches[0] : e;
@@ -980,13 +991,14 @@ function dragDayEnd(e) {
   dayDrag.el.remove();
   if (dayDrag.sourceCardEl) dayDrag.sourceCardEl.style.opacity = '';
 
-  if (col && col.dataset.day !== dayDrag.fromDay) {
+  if (col) {
     const toDay = col.dataset.day;
     const fromArr = state.weekBoard.days[dayDrag.fromDay];
     const idx = fromArr.findIndex(t => t.id === dayDrag.taskId);
     if (idx > -1) {
       const [task] = fromArr.splice(idx, 1);
-      state.weekBoard.days[toDay].push(task);
+      const dropIndex = getDropIndex(toDay, point.clientY, dayDrag.taskId);
+      state.weekBoard.days[toDay].splice(dropIndex, 0, task);
       saveState();
     }
   }
