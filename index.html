@@ -287,6 +287,21 @@
     box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     width: 68%;
   }
+  .task .drag-handle {
+    cursor: grab;
+    opacity: 0.4;
+    font-size: 1rem;
+    touch-action: none;
+    padding: 2px 6px 2px 0;
+    flex-shrink: 0;
+  }
+  .task.dragging {
+    position: fixed;
+    pointer-events: none;
+    z-index: 40;
+    opacity: 0.85;
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+  }
   .day-card .task-name { flex: 1; min-width: 0; font-size: 0.85rem; overflow-wrap: break-word; }
   .day-card .task-name.done { text-decoration: line-through; opacity: 0.5; }
   .day-card-label {
@@ -699,9 +714,12 @@ function render() {
     const card = document.createElement('div');
     card.className = 'task';
 
+    card.dataset.taskId = task.id;
+
     if (task.type === 'checkbox') {
       card.innerHTML = `
         <div class="task-row">
+          <span class="drag-handle">⠿</span>
           <div class="checkbox ${task.done ? 'done' : ''}" data-id="${task.id}">${task.done ? '✓' : ''}</div>
           <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
           <div class="task-reward">+${task.coinValue}</div>
@@ -713,6 +731,7 @@ function render() {
       const barColor = task.role === 'water' ? 'var(--water)' : 'var(--food)';
       card.innerHTML = `
         <div class="task-row">
+          <span class="drag-handle">⠿</span>
           <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
           <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
         </div>
@@ -739,11 +758,98 @@ function render() {
       });
     }
 
+    const group = task.role === 'coin' ? 'coin' : 'priority';
+    card.dataset.group = group;
+    card.querySelector('.drag-handle').addEventListener('touchstart', e => startTaskDrag(e, card, task.id, group), { passive: false });
+    card.querySelector('.drag-handle').addEventListener('mousedown', e => startTaskDrag(e, card, task.id, group));
+
     if (task.role === 'coin') coinEl.appendChild(card);
     else priorityEl.appendChild(card);
   });
 
   renderManage();
+}
+
+// Drag to reorder tasks within their own section (Priority or Other habits).
+// Unlike the week-board drag, this never moves a task between the two
+// sections — only up/down within whichever list it started in.
+let taskDrag = null;
+function startTaskDrag(e, cardEl, taskId, group) {
+  e.preventDefault();
+  const point = e.touches ? e.touches[0] : e;
+  const rect = cardEl.getBoundingClientRect();
+  taskDrag = { taskId, group, offsetX: point.clientX - rect.left, offsetY: point.clientY - rect.top };
+
+  const clone = cardEl.cloneNode(true);
+  clone.classList.add('dragging');
+  clone.style.left = rect.left + 'px';
+  clone.style.top = rect.top + 'px';
+  clone.style.width = rect.width + 'px';
+  document.body.appendChild(clone);
+  taskDrag.el = clone;
+  cardEl.style.opacity = '0.3';
+  taskDrag.sourceCardEl = cardEl;
+  taskDrag.containerEl = cardEl.parentElement;
+
+  document.addEventListener('touchmove', dragTaskMove, { passive: false });
+  document.addEventListener('touchend', dragTaskEnd);
+  document.addEventListener('mousemove', dragTaskMove);
+  document.addEventListener('mouseup', dragTaskEnd);
+}
+
+function dragTaskMove(e) {
+  if (!taskDrag) return;
+  e.preventDefault();
+  const point = e.touches ? e.touches[0] : e;
+  taskDrag.el.style.left = (point.clientX - taskDrag.offsetX) + 'px';
+  taskDrag.el.style.top = (point.clientY - taskDrag.offsetY) + 'px';
+}
+
+function getTaskDropIndex(containerEl, clientY, excludeTaskId) {
+  const cardEls = Array.from(containerEl.querySelectorAll('.task')).filter(el => el.dataset.taskId !== excludeTaskId);
+  for (let i = 0; i < cardEls.length; i++) {
+    const rect = cardEls[i].getBoundingClientRect();
+    const midpoint = rect.top + rect.height / 2;
+    if (clientY < midpoint) return i;
+  }
+  return cardEls.length;
+}
+
+function dragTaskEnd(e) {
+  if (!taskDrag) return;
+  const point = e.changedTouches ? e.changedTouches[0] : e;
+
+  taskDrag.el.remove();
+  if (taskDrag.sourceCardEl) taskDrag.sourceCardEl.style.opacity = '';
+
+  const dropIndex = getTaskDropIndex(taskDrag.containerEl, point.clientY, taskDrag.taskId);
+
+  // Reorder within just this task's group (priority or coin), leaving the
+  // other group's tasks untouched and in their existing relative order.
+  const groupTasks = state.tasks.filter(t => (t.role === 'coin' ? 'coin' : 'priority') === taskDrag.group);
+  const otherTasks = state.tasks.filter(t => (t.role === 'coin' ? 'coin' : 'priority') !== taskDrag.group);
+
+  const draggedIdx = groupTasks.findIndex(t => t.id === taskDrag.taskId);
+  if (draggedIdx > -1) {
+    const [dragged] = groupTasks.splice(draggedIdx, 1);
+    groupTasks.splice(dropIndex, 0, dragged);
+  }
+
+  // Rebuild state.tasks preserving overall task identity, just re-ordered
+  // within each group. Priority tasks first, then coin tasks — matches
+  // how they're already split into two separate on-screen sections.
+  const priorityGroup = taskDrag.group === 'priority' ? groupTasks : otherTasks.filter(t => t.role !== 'coin');
+  const coinGroup = taskDrag.group === 'coin' ? groupTasks : otherTasks.filter(t => t.role === 'coin');
+  state.tasks = [...priorityGroup, ...coinGroup];
+
+  saveState();
+
+  document.removeEventListener('touchmove', dragTaskMove);
+  document.removeEventListener('touchend', dragTaskEnd);
+  document.removeEventListener('mousemove', dragTaskMove);
+  document.removeEventListener('mouseup', dragTaskEnd);
+  taskDrag = null;
+  render();
 }
 
 function streakLine(task) {
