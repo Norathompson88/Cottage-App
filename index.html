@@ -598,30 +598,40 @@ function loadState() {
     if (t.role === 'coin') t.coinValue = 1; // flat 1 coin for every additional task, no exceptions
   });
 
-  if (state.date !== todayStr()) {
-    const daysPassed = daysBetween(state.date, todayStr());
-    state.tasks.forEach(t => {
-      // the day that just ended: did the task get completed?
-      if (t.done) {
-        t.streak += 1;
-        if (t.streak > t.longestStreak) t.longestStreak = t.streak;
-      } else {
-        t.streak = 0;
-        t.missedCount += 1;
-      }
-      // any fully-skipped days in between (app wasn't opened at all) count as misses too
-      const extraMissedDays = Math.max(0, daysPassed - 1);
-      if (extraMissedDays > 0) {
-        t.streak = 0;
-        t.missedCount += extraMissedDays;
-      }
-      // reset for the new day
-      t.done = false;
-      if (t.type === 'progress') t.current = 0;
-    });
-    state.date = todayStr();
-  }
+  applyDailyRollover(state);
   return state;
+}
+
+// Checks whether the stored date is behind today's date, and if so, scores
+// yesterday's tasks (streak/miss) and resets everything for the new day.
+// Returns true if a rollover happened, false if state was already current.
+// Pulled out of loadState so it can also be re-run on visibilitychange —
+// iOS can keep a home-screen PWA frozen in memory instead of reloading it,
+// so this needs a way to fire on foreground, not just on page load.
+function applyDailyRollover(state) {
+  if (state.date === todayStr()) return false;
+  const daysPassed = daysBetween(state.date, todayStr());
+  state.tasks.forEach(t => {
+    // the day that just ended: did the task get completed?
+    if (t.done) {
+      t.streak += 1;
+      if (t.streak > t.longestStreak) t.longestStreak = t.streak;
+    } else {
+      t.streak = 0;
+      t.missedCount += 1;
+    }
+    // any fully-skipped days in between (app wasn't opened at all) count as misses too
+    const extraMissedDays = Math.max(0, daysPassed - 1);
+    if (extraMissedDays > 0) {
+      t.streak = 0;
+      t.missedCount += extraMissedDays;
+    }
+    // reset for the new day
+    t.done = false;
+    if (t.type === 'progress') t.current = 0;
+  });
+  state.date = todayStr();
+  return true;
 }
 
 function daysBetween(dateStrA, dateStrB) {
@@ -853,12 +863,15 @@ function dragTaskEnd(e) {
 }
 
 function streakLine(task) {
+  // Show today's checkmark immediately without touching the stored streak
+  // value (that only updates overnight via applyDailyRollover).
+  const displayStreak = task.streak + (task.done ? 1 : 0);
   let goalPart = '';
   if (task.goalDays) {
-    const progress = Math.min(task.streak, task.goalDays);
+    const progress = Math.min(displayStreak, task.goalDays);
     goalPart = ` · 🎯 ${progress}/${task.goalDays} days`;
   }
-  return `<div class="task-stats">🔥 ${task.streak} day streak${goalPart} · missed ${task.missedCount}</div>`;
+  return `<div class="task-stats">🔥 ${displayStreak} day streak${goalPart} · missed ${task.missedCount}</div>`;
 }
 
 const PROJECT_COMPLETION_COINS = 5;
@@ -1479,6 +1492,19 @@ document.getElementById('addProjectBtn').addEventListener('click', () => {
 
 render();
 setInterval(refreshScene, 60000); // keep the "time left" countdown current while the app is open
+
+// iOS can keep a home-screen PWA frozen in memory instead of fully reloading
+// it, so the date check at the top of loadState() might never re-run just
+// from tapping the icon. This re-checks every time the app comes back into
+// view, so a day change is caught the moment you look at the screen again.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    if (applyDailyRollover(state)) {
+      saveState();
+    }
+    render();
+  }
+});
 // idle panting loop disabled — dog now uses a single static idle image
 // setTimeout(advancePantFrame, PANT_FRAMES[0].hold);
 
