@@ -122,6 +122,77 @@
     z-index: 8;
   }
   .panel-overlay.open { display: block; }
+
+  .day-edit-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 20;
+    padding: 20px;
+  }
+  .day-edit-card {
+    background: var(--card);
+    border-radius: 18px;
+    padding: 18px;
+    width: 100%;
+    max-width: 320px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.25);
+  }
+  .day-edit-card h3 {
+    margin: 0 0 12px 0;
+    font-size: 1rem;
+    color: var(--ink);
+  }
+  .day-edit-card input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+  }
+  .day-edit-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.6;
+    margin-bottom: 6px;
+  }
+  .day-edit-days {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .day-edit-day-btn {
+    flex: 1 0 auto;
+    min-width: 38px;
+    padding: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #ddd;
+    background: #fff;
+    color: var(--ink);
+    font-size: 0.8rem;
+  }
+  .day-edit-day-btn.selected {
+    background: var(--accent);
+    border-color: var(--accent-dark);
+    color: #fff;
+  }
+  .day-edit-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .day-edit-actions button {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    font-size: 0.9rem;
+  }
+  .day-edit-cancel { background: rgba(0,0,0,0.06); color: var(--ink); }
+  .day-edit-save { background: var(--accent); color: #fff; }
   .panel {
     position: fixed;
     left: 0; right: 0; bottom: 0;
@@ -1037,13 +1108,52 @@ function toggleDayTask(day, taskId) {
 function editDayTask(day, taskId) {
   const task = state.weekBoard.days[day].find(t => t.id === taskId);
   if (!task) return;
-  const newName = window.prompt('Edit task name', task.name);
-  if (newName === null) return;
-  const trimmed = newName.trim();
-  if (!trimmed) return;
-  task.name = trimmed;
-  saveState();
-  render();
+  openDayEditSheet(day, task);
+}
+
+// Small centered sheet for editing a day-task's name and which day it's on,
+// so moving a task Sun -> Sat is a tap instead of a drag across the whole board.
+function openDayEditSheet(day, task) {
+  const overlay = document.createElement('div');
+  overlay.className = 'day-edit-overlay';
+  overlay.innerHTML = `
+    <div class="day-edit-card">
+      <h3>Edit task</h3>
+      <input type="text" id="dayEditName" value="${task.name.replace(/"/g, '&quot;')}">
+      <div class="day-edit-label">Day</div>
+      <div class="day-edit-days">
+        ${DAYS.map(d => `<button type="button" class="day-edit-day-btn${d === day ? ' selected' : ''}" data-day="${d}">${DAY_LABELS[d]}</button>`).join('')}
+      </div>
+      <div class="day-edit-actions">
+        <button type="button" class="day-edit-cancel">Cancel</button>
+        <button type="button" class="day-edit-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  let selectedDay = day;
+  const dayBtns = overlay.querySelectorAll('.day-edit-day-btn');
+  dayBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedDay = btn.dataset.day;
+      dayBtns.forEach(b => b.classList.toggle('selected', b.dataset.day === selectedDay));
+    });
+  });
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('.day-edit-cancel').addEventListener('click', close);
+  overlay.querySelector('.day-edit-save').addEventListener('click', () => {
+    const newName = overlay.querySelector('#dayEditName').value.trim();
+    if (newName) task.name = newName;
+    if (selectedDay !== day) {
+      state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== task.id);
+      state.weekBoard.days[selectedDay].push(task);
+    }
+    saveState();
+    close();
+    render();
+  });
 }
 
 function deleteDayTask(day, taskId) {
