@@ -395,6 +395,16 @@
     padding: 2px 3px;
     flex-shrink: 0;
   }
+  .plan-tag {
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--accent-dark);
+    background: rgba(122,158,126,0.18);
+    border-radius: 6px;
+    padding: 2px 6px;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
   .day-column.drop-target { outline: 2px dashed var(--accent-dark); }
   .day-add-form { display: flex; gap: 4px; margin-top: 4px; }
   .day-add-form input { flex: 1; min-width: 0; font-size: 0.8rem; padding: 6px; border: 1px solid #ddd; border-radius: 6px; }
@@ -544,9 +554,6 @@
 
   <h3>Other habits — earn coins</h3>
   <div id="coinTasks"></div>
-
-  <h3 id="todayPlanHeading" style="display:none;">Today's plan</h3>
-  <div id="todayPlanTasks"></div>
 
   <h3>Week Plan</h3>
   <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day, or drop it higher/lower to reorder within a day</p>
@@ -788,7 +795,6 @@ function render() {
   renderShop();
   renderProjects();
   renderWeekBoard();
-  renderTodayPlan();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -851,6 +857,8 @@ function render() {
     if (task.role === 'coin') coinEl.appendChild(card);
     else priorityEl.appendChild(card);
   });
+
+  appendTodayPlanCards(coinEl);
 
   renderManage();
 }
@@ -1113,20 +1121,32 @@ function renderWeekBoard() {
   });
 }
 
-// Mirrors today's Week Plan tasks into the main daily checklist, so there's
-// one list to run down each day. The tasks still live only in
-// state.weekBoard.days[today] — this just renders a second view of the same
-// objects, and stays visible in their own day column too (that part never
-// hides, even on its own day).
-function renderTodayPlan() {
+// Mirrors today's Week Plan tasks into the same "Other habits" list as the
+// daily habits, tagged with a small 📅 Plan badge so they're easy to spot in
+// the one scroll-down list — no separate section. The tasks still live only
+// in state.weekBoard.days[today], so checking one off here also checks it
+// off in that day's own column (that part never hides, even on its own day).
+function appendTodayPlanCards(coinEl) {
   const today = currentDayKey();
-  const container = document.getElementById('todayPlanTasks');
-  const heading = document.getElementById('todayPlanHeading');
-  container.innerHTML = '';
-  const todaysTasks = state.weekBoard.days[today];
-  heading.style.display = todaysTasks.length ? '' : 'none';
-  todaysTasks.forEach(task => {
-    container.appendChild(createDayCard(today, task, false));
+  state.weekBoard.days[today].forEach(task => {
+    const project = task.projectId ? state.projects.find(p => p.id === task.projectId) : null;
+    const card = document.createElement('div');
+    card.className = 'task';
+    card.dataset.taskId = task.id;
+    card.dataset.day = today;
+    card.innerHTML = `
+      <div class="task-row">
+        <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
+        <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
+        <span class="plan-tag">📅 Plan</span>
+        ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span>` : '<div class="task-reward">+1</div>'}
+        <button class="day-card-edit">✎</button>
+        <button class="day-card-del">✕</button>
+      </div>`;
+    card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(today, task.id));
+    card.querySelector('.day-card-edit').addEventListener('click', () => editDayTask(today, task.id));
+    card.querySelector('.day-card-del').addEventListener('click', () => deleteDayTask(today, task.id));
+    coinEl.appendChild(card);
   });
 }
 
