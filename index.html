@@ -545,6 +545,9 @@
   <h3>Other habits — earn coins</h3>
   <div id="coinTasks"></div>
 
+  <h3 id="todayPlanHeading" style="display:none;">Today's plan</h3>
+  <div id="todayPlanTasks"></div>
+
   <h3>Week Plan</h3>
   <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Resets fresh each week · press and hold a card's ⠿ handle to drag it to another day, or drop it higher/lower to reorder within a day</p>
   <div class="week-board" id="weekBoard"></div>
@@ -785,6 +788,7 @@ function render() {
   renderShop();
   renderProjects();
   renderWeekBoard();
+  renderTodayPlan();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -1038,6 +1042,42 @@ function deleteProject(projectId) {
   render();
 }
 
+// Which weekBoard day key ('sun'..'sat') corresponds to today.
+function currentDayKey() {
+  return DAYS[new Date().getDay()];
+}
+
+// Builds one day-task card. Used both in the Week Plan's day columns and in
+// the "Today's plan" list on the daily task screen — both views point at the
+// exact same task object in state.weekBoard.days, so checking it off (or
+// editing/deleting it) in either place stays in sync with the other.
+// `draggable` is only enabled for the Week Plan column cards; the Today's
+// plan copy skips the drag handle since it isn't a day column to drop into.
+function createDayCard(day, task, draggable) {
+  const project = task.projectId ? state.projects.find(p => p.id === task.projectId) : null;
+  const card = document.createElement('div');
+  card.className = 'day-card';
+  card.dataset.taskId = task.id;
+  card.dataset.day = day;
+  card.innerHTML = `
+    ${draggable ? '<span class="drag-handle">⠿</span>' : ''}
+    <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
+    <div style="flex:1; min-width:0;">
+      ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span><br>` : ''}
+      <span class="task-name ${task.done ? 'done' : ''}">${task.name}</span>
+    </div>
+    <button class="day-card-edit">✎</button>
+    <button class="day-card-del">✕</button>`;
+  card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(day, task.id));
+  card.querySelector('.day-card-edit').addEventListener('click', () => editDayTask(day, task.id));
+  card.querySelector('.day-card-del').addEventListener('click', () => deleteDayTask(day, task.id));
+  if (draggable) {
+    card.querySelector('.drag-handle').addEventListener('touchstart', e => startDayCardDrag(e, card, day, task.id), { passive: false });
+    card.querySelector('.drag-handle').addEventListener('mousedown', e => startDayCardDrag(e, card, day, task.id));
+  }
+  return card;
+}
+
 function renderWeekBoard() {
   const board = document.getElementById('weekBoard');
   board.innerHTML = '';
@@ -1056,26 +1096,7 @@ function renderWeekBoard() {
   DAYS.forEach(day => {
     const cardsEl = document.getElementById(`daycards-${day}`);
     state.weekBoard.days[day].forEach(task => {
-      const project = task.projectId ? state.projects.find(p => p.id === task.projectId) : null;
-      const card = document.createElement('div');
-      card.className = 'day-card';
-      card.dataset.taskId = task.id;
-      card.dataset.day = day;
-      card.innerHTML = `
-        <span class="drag-handle">⠿</span>
-        <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
-        <div style="flex:1; min-width:0;">
-          ${project ? `<span class="day-card-label" style="background:${project.color}">${project.name}</span><br>` : ''}
-          <span class="task-name ${task.done ? 'done' : ''}">${task.name}</span>
-        </div>
-        <button class="day-card-edit">✎</button>
-        <button class="day-card-del">✕</button>`;
-      card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(day, task.id));
-      card.querySelector('.day-card-edit').addEventListener('click', () => editDayTask(day, task.id));
-      card.querySelector('.day-card-del').addEventListener('click', () => deleteDayTask(day, task.id));
-      card.querySelector('.drag-handle').addEventListener('touchstart', e => startDayCardDrag(e, card, day, task.id), { passive: false });
-      card.querySelector('.drag-handle').addEventListener('mousedown', e => startDayCardDrag(e, card, day, task.id));
-      cardsEl.appendChild(card);
+      cardsEl.appendChild(createDayCard(day, task, true));
     });
   });
 
@@ -1089,6 +1110,23 @@ function renderWeekBoard() {
       saveState();
       render();
     });
+  });
+}
+
+// Mirrors today's Week Plan tasks into the main daily checklist, so there's
+// one list to run down each day. The tasks still live only in
+// state.weekBoard.days[today] — this just renders a second view of the same
+// objects, and stays visible in their own day column too (that part never
+// hides, even on its own day).
+function renderTodayPlan() {
+  const today = currentDayKey();
+  const container = document.getElementById('todayPlanTasks');
+  const heading = document.getElementById('todayPlanHeading');
+  container.innerHTML = '';
+  const todaysTasks = state.weekBoard.days[today];
+  heading.style.display = todaysTasks.length ? '' : 'none';
+  todaysTasks.forEach(task => {
+    container.appendChild(createDayCard(today, task, false));
   });
 }
 
