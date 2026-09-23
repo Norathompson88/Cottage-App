@@ -114,6 +114,9 @@
     background-repeat: no-repeat;
     background-position: center;
   }
+  .fab-btn.fab-icon-clean::before {
+    content: '🧹';
+  }
 
   .panel-overlay {
     position: fixed; inset: 0;
@@ -395,6 +398,14 @@
     padding: 2px 3px;
     flex-shrink: 0;
   }
+  .task-tod-edit {
+    border: none;
+    background: none;
+    opacity: 0.4;
+    font-size: 0.85rem;
+    padding: 2px 3px;
+    flex-shrink: 0;
+  }
   .plan-tag {
     font-size: 0.68rem;
     font-weight: 600;
@@ -542,6 +553,7 @@
 
 <div class="fab-bar">
   <button class="fab-btn fab-icon" data-panel="tasks"></button>
+  <button class="fab-btn fab-icon-clean" data-panel="cleaning"></button>
   <button class="fab-btn fab-icon-shop" data-panel="shop"></button>
 </div>
 
@@ -587,6 +599,50 @@
       </select>
       <button id="addTaskBtn">Add task</button>
     </div>
+  </div>
+</div>
+
+<div class="panel" id="panel-cleaning">
+  <div class="panel-header"><h2>Cleaning Schedule</h2><button class="panel-close" data-close>✕</button></div>
+  <p style="font-size:0.8rem; opacity:0.65; margin:0 0 8px;">Whatever's due shows up in your daily list automatically, tagged 🧹 — manage the schedule here.</p>
+
+  <h3>Everyday</h3>
+  <div id="cleanEverydayList"></div>
+  <div class="add-task-form">
+    <input type="text" id="cleanEverydayInput" placeholder="Add an everyday chore">
+    <button data-clean-add="everyday">Add</button>
+  </div>
+
+  <h3>Weekly</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Same routine every week — checkmarks reset each Sunday</p>
+  <div class="week-board" id="cleanWeekBoard"></div>
+
+  <h3>Monthly</h3>
+  <div id="cleanMonthlyList"></div>
+  <div class="add-task-form">
+    <input type="text" id="cleanMonthlyInput" placeholder="Add a monthly task">
+    <button data-clean-add="monthly">Add</button>
+  </div>
+
+  <h3>Quarterly</h3>
+  <div id="cleanQuarterlyList"></div>
+  <div class="add-task-form">
+    <input type="text" id="cleanQuarterlyInput" placeholder="Add a quarterly task">
+    <button data-clean-add="quarterly">Add</button>
+  </div>
+
+  <h3>Semi-annual</h3>
+  <div id="cleanSemiAnnualList"></div>
+  <div class="add-task-form">
+    <input type="text" id="cleanSemiAnnualInput" placeholder="Add a semi-annual task">
+    <button data-clean-add="semiAnnual">Add</button>
+  </div>
+
+  <h3>Annual</h3>
+  <div id="cleanAnnualList"></div>
+  <div class="add-task-form">
+    <input type="text" id="cleanAnnualInput" placeholder="Add an annual task">
+    <button data-clean-add="annual">Add</button>
   </div>
 </div>
 
@@ -636,6 +692,14 @@ function defaultState() {
 const DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 const DAY_LABELS = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
 
+// Time-of-day tags: a light tint on the card so you can see at a glance when
+// a task is meant to happen. No tag = default gray, unchanged.
+const TOD_LABELS = { am: 'AM', md: 'MD', pm: 'PM' };
+const TOD_COLORS = { am: '#FDEFCB', md: '#FAD9B0', pm: '#E1DEF7' };
+function applyTimeOfDayTint(card, timeOfDay) {
+  card.style.background = TOD_COLORS[timeOfDay] || '';
+}
+
 function emptyWeekDays() {
   const days = {};
   DAYS.forEach(d => days[d] = []);
@@ -648,6 +712,16 @@ function weekStartStr() {
   const sunday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day);
   return sunday.getFullYear() + '-' + (sunday.getMonth() + 1) + '-' + sunday.getDate();
 }
+
+// Period keys for the Cleaning tracker's longer cadences. Each periodic
+// cleaning task just stores which period it was last active for; when the
+// stored key no longer matches the current one, it's a new period and the
+// checkbox resets. Monthly/quarterly/semi-annual/annual tasks stay "due"
+// (visible + unchecked) for their whole period, not tied to a specific date.
+function monthKey(d = new Date()) { return `${d.getFullYear()}-${d.getMonth() + 1}`; }
+function quarterKey(d = new Date()) { return `${d.getFullYear()}-Q${Math.floor(d.getMonth() / 3) + 1}`; }
+function halfKey(d = new Date()) { return `${d.getFullYear()}-H${d.getMonth() < 6 ? 1 : 2}`; }
+function yearKey(d = new Date()) { return `${d.getFullYear()}`; }
 
 const SHOP_ITEMS = [
   { id: 'bed', name: 'Cozy pet bed', cost: 40, img: 'item-bed.png' },
@@ -670,6 +744,16 @@ function loadState() {
   if (!state.weekBoard) state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() };
   if (state.weekBoard.weekStart !== weekStartStr()) {
     state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() }; // new week — plan resets fresh
+  }
+  if (!state.cleaning) {
+    state.cleaning = {
+      everyday: [],
+      weekly: emptyWeekDays(), weeklyPeriodKey: weekStartStr(),
+      monthly: [], monthlyPeriodKey: monthKey(),
+      quarterly: [], quarterlyPeriodKey: quarterKey(),
+      semiAnnual: [], semiAnnualPeriodKey: halfKey(),
+      annual: [], annualPeriodKey: yearKey()
+    };
   }
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
@@ -711,6 +795,33 @@ function applyDailyRollover(state) {
     t.done = false;
     if (t.type === 'progress') t.current = 0;
   });
+
+  // Cleaning tracker: each tier resets on its own cadence, independent of
+  // the habit streak logic above (no streaks/misses for cleaning tasks —
+  // it's a schedule, not a habit game). A day change is the only time any
+  // of these cadences can roll over, which is why this lives here too.
+  state.cleaning.everyday.forEach(t => t.done = false);
+  if (state.cleaning.weeklyPeriodKey !== weekStartStr()) {
+    DAYS.forEach(d => state.cleaning.weekly[d].forEach(t => t.done = false));
+    state.cleaning.weeklyPeriodKey = weekStartStr();
+  }
+  if (state.cleaning.monthlyPeriodKey !== monthKey()) {
+    state.cleaning.monthly.forEach(t => t.done = false);
+    state.cleaning.monthlyPeriodKey = monthKey();
+  }
+  if (state.cleaning.quarterlyPeriodKey !== quarterKey()) {
+    state.cleaning.quarterly.forEach(t => t.done = false);
+    state.cleaning.quarterlyPeriodKey = quarterKey();
+  }
+  if (state.cleaning.semiAnnualPeriodKey !== halfKey()) {
+    state.cleaning.semiAnnual.forEach(t => t.done = false);
+    state.cleaning.semiAnnualPeriodKey = halfKey();
+  }
+  if (state.cleaning.annualPeriodKey !== yearKey()) {
+    state.cleaning.annual.forEach(t => t.done = false);
+    state.cleaning.annualPeriodKey = yearKey();
+  }
+
   state.date = todayStr();
   return true;
 }
@@ -795,6 +906,7 @@ function render() {
   renderShop();
   renderProjects();
   renderWeekBoard();
+  renderCleaningPanel();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -814,6 +926,7 @@ function render() {
           <div class="checkbox ${task.done ? 'done' : ''}" data-id="${task.id}">${task.done ? '✓' : ''}</div>
           <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
           <div class="task-reward">+${task.coinValue}</div>
+          <button class="task-tod-edit">✎</button>
         </div>
         ${streakLine(task)}`;
       card.querySelector('.checkbox').addEventListener('click', () => toggleCheckbox(task.id));
@@ -825,6 +938,7 @@ function render() {
           <span class="drag-handle">⠿</span>
           <div class="checkbox ${task.done ? 'done' : ''}">${task.done ? '✓' : ''}</div>
           <div class="task-name ${task.done ? 'done' : ''}">${task.name}</div>
+          <button class="task-tod-edit">✎</button>
         </div>
         <div class="progress-wrap">
           <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${pct}%; background:${barColor}"></div></div>
@@ -849,6 +963,9 @@ function render() {
       });
     }
 
+    card.querySelector('.task-tod-edit').addEventListener('click', () => editTaskTimeOfDay(task.id));
+    applyTimeOfDayTint(card, task.timeOfDay);
+
     const group = task.role === 'coin' ? 'coin' : 'priority';
     card.dataset.group = group;
     card.querySelector('.drag-handle').addEventListener('touchstart', e => startTaskDrag(e, card, task.id, group), { passive: false });
@@ -859,6 +976,7 @@ function render() {
   });
 
   appendTodayPlanCards(coinEl);
+  appendCleaningCards(coinEl);
 
   renderManage();
 }
@@ -1146,6 +1264,7 @@ function appendTodayPlanCards(coinEl) {
     card.querySelector('.checkbox').addEventListener('click', () => toggleDayTask(today, task.id));
     card.querySelector('.day-card-edit').addEventListener('click', () => editDayTask(today, task.id));
     card.querySelector('.day-card-del').addEventListener('click', () => deleteDayTask(today, task.id));
+    applyTimeOfDayTint(card, task.timeOfDay);
     coinEl.appendChild(card);
   });
 }
@@ -1169,8 +1288,9 @@ function editDayTask(day, taskId) {
   openDayEditSheet(day, task);
 }
 
-// Small centered sheet for editing a day-task's name and which day it's on,
-// so moving a task Sun -> Sat is a tap instead of a drag across the whole board.
+// Small centered sheet for editing a day-task's name, which day it's on, and
+// its time-of-day tag — so moving a task Sun -> Sat, or tagging it AM/MD/PM,
+// is a tap instead of a drag across the whole board.
 function openDayEditSheet(day, task) {
   const overlay = document.createElement('div');
   overlay.className = 'day-edit-overlay';
@@ -1181,6 +1301,10 @@ function openDayEditSheet(day, task) {
       <div class="day-edit-label">Day</div>
       <div class="day-edit-days">
         ${DAYS.map(d => `<button type="button" class="day-edit-day-btn${d === day ? ' selected' : ''}" data-day="${d}">${DAY_LABELS[d]}</button>`).join('')}
+      </div>
+      <div class="day-edit-label">Time of day</div>
+      <div class="day-edit-days">
+        ${todButtonsHtml(task.timeOfDay)}
       </div>
       <div class="day-edit-actions">
         <button type="button" class="day-edit-cancel">Cancel</button>
@@ -1198,12 +1322,16 @@ function openDayEditSheet(day, task) {
     });
   });
 
+  let selectedTod = task.timeOfDay || null;
+  wireTodButtons(overlay, val => { selectedTod = val; });
+
   const close = () => overlay.remove();
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
   overlay.querySelector('.day-edit-cancel').addEventListener('click', close);
   overlay.querySelector('.day-edit-save').addEventListener('click', () => {
     const newName = overlay.querySelector('#dayEditName').value.trim();
     if (newName) task.name = newName;
+    task.timeOfDay = selectedTod;
     if (selectedDay !== day) {
       state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== task.id);
       state.weekBoard.days[selectedDay].push(task);
@@ -1214,10 +1342,212 @@ function openDayEditSheet(day, task) {
   });
 }
 
+// Shared markup/wiring for the AM/MD/PM/None button row, used by both the
+// day-task sheet above and the recurring-task sheet below.
+function todButtonsHtml(currentValue) {
+  const options = [['am', 'AM'], ['md', 'MD'], ['pm', 'PM'], [null, 'None']];
+  return options.map(([val, label]) =>
+    `<button type="button" class="day-edit-day-btn${val === (currentValue || null) ? ' selected' : ''}" data-tod="${val ?? ''}">${label}</button>`
+  ).join('');
+}
+function wireTodButtons(container, onSelect) {
+  const todBtns = container.querySelectorAll('[data-tod]');
+  todBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const val = btn.dataset.tod || null;
+      onSelect(val);
+      todBtns.forEach(b => b.classList.toggle('selected', b === btn));
+    });
+  });
+}
+
+// Small sheet for tagging a recurring daily task with a time of day. No day
+// picker here since recurring tasks aren't tied to a specific day.
+function editTaskTimeOfDay(taskId) {
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'day-edit-overlay';
+  overlay.innerHTML = `
+    <div class="day-edit-card">
+      <h3>Time of day</h3>
+      <div class="day-edit-days">
+        ${todButtonsHtml(task.timeOfDay)}
+      </div>
+      <div class="day-edit-actions">
+        <button type="button" class="day-edit-cancel">Cancel</button>
+        <button type="button" class="day-edit-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  let selectedTod = task.timeOfDay || null;
+  wireTodButtons(overlay, val => { selectedTod = val; });
+
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('.day-edit-cancel').addEventListener('click', close);
+  overlay.querySelector('.day-edit-save').addEventListener('click', () => {
+    task.timeOfDay = selectedTod;
+    saveState();
+    close();
+    render();
+  });
+}
+
 function deleteDayTask(day, taskId) {
   state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== taskId);
   saveState();
   render();
+}
+
+// ---------- Cleaning tracker ----------
+// A separate schedule (its own fab button + panel) rather than a section
+// inside the Tasks panel. Six tiers: everyday, weekly (by day), monthly,
+// quarterly, semi-annual, annual — each just a name + a checkbox, no
+// streaks/coins (it's a schedule, not a habit game). Whatever's currently
+// due gets mirrored into the main daily list (tagged 🧹) so there's still
+// only one list to run down each day; see appendCleaningCards().
+const CLEAN_TIERS = ['everyday', 'monthly', 'quarterly', 'semiAnnual', 'annual'];
+const CLEAN_TIER_LIST_IDS = {
+  everyday: 'cleanEverydayList', monthly: 'cleanMonthlyList', quarterly: 'cleanQuarterlyList',
+  semiAnnual: 'cleanSemiAnnualList', annual: 'cleanAnnualList'
+};
+const CLEAN_TIER_INPUT_IDS = {
+  everyday: 'cleanEverydayInput', monthly: 'cleanMonthlyInput', quarterly: 'cleanQuarterlyInput',
+  semiAnnual: 'cleanSemiAnnualInput', annual: 'cleanAnnualInput'
+};
+const CLEAN_TIER_TAGS = {
+  everyday: '🧹 Everyday', weekly: '🧹 Weekly', monthly: '🧹 Monthly',
+  quarterly: '🧹 Quarterly', semiAnnual: '🧹 Semi-annual', annual: '🧹 Annual'
+};
+
+function toggleCleaningTask(tier, taskId) {
+  const task = state.cleaning[tier].find(t => t.id === taskId);
+  if (!task) return;
+  task.done = !task.done;
+  saveState();
+  render();
+}
+function deleteCleaningTask(tier, taskId) {
+  state.cleaning[tier] = state.cleaning[tier].filter(t => t.id !== taskId);
+  saveState();
+  render();
+}
+function toggleCleaningWeeklyTask(day, taskId) {
+  const task = state.cleaning.weekly[day].find(t => t.id === taskId);
+  if (!task) return;
+  task.done = !task.done;
+  saveState();
+  render();
+}
+function deleteCleaningWeeklyTask(day, taskId) {
+  state.cleaning.weekly[day] = state.cleaning.weekly[day].filter(t => t.id !== taskId);
+  saveState();
+  render();
+}
+
+// One row inside the Cleaning panel itself (flat lists + weekly day columns).
+function createCleaningRow(name, done, onToggle, onDelete) {
+  const row = document.createElement('div');
+  row.className = 'day-card';
+  row.innerHTML = `
+    <div class="checkbox ${done ? 'done' : ''}">${done ? '✓' : ''}</div>
+    <div style="flex:1; min-width:0;"><span class="task-name ${done ? 'done' : ''}">${name}</span></div>
+    <button class="day-card-del">✕</button>`;
+  row.querySelector('.checkbox').addEventListener('click', onToggle);
+  row.querySelector('.day-card-del').addEventListener('click', onDelete);
+  return row;
+}
+
+function renderCleaningPanel() {
+  CLEAN_TIERS.forEach(tier => {
+    const list = document.getElementById(CLEAN_TIER_LIST_IDS[tier]);
+    list.innerHTML = '';
+    state.cleaning[tier].forEach(task => {
+      list.appendChild(createCleaningRow(task.name, task.done,
+        () => toggleCleaningTask(tier, task.id),
+        () => deleteCleaningTask(tier, task.id)));
+    });
+  });
+
+  const board = document.getElementById('cleanWeekBoard');
+  board.innerHTML = '';
+  DAYS.forEach(day => {
+    const col = document.createElement('div');
+    col.className = 'day-column';
+    col.innerHTML = `<h4>${DAY_LABELS[day]}</h4><div class="day-cards" id="cleanday-${day}"></div>
+      <div class="day-add-form">
+        <input type="text" placeholder="Add task" id="newCleanDayTask-${day}">
+        <button data-clean-add-day="${day}">+</button>
+      </div>`;
+    board.appendChild(col);
+  });
+  DAYS.forEach(day => {
+    const cardsEl = document.getElementById(`cleanday-${day}`);
+    state.cleaning.weekly[day].forEach(task => {
+      cardsEl.appendChild(createCleaningRow(task.name, task.done,
+        () => toggleCleaningWeeklyTask(day, task.id),
+        () => deleteCleaningWeeklyTask(day, task.id)));
+    });
+  });
+
+  document.querySelectorAll('[data-clean-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tier = btn.dataset.cleanAdd;
+      const input = document.getElementById(CLEAN_TIER_INPUT_IDS[tier]);
+      const name = input.value.trim();
+      if (!name) return;
+      state.cleaning[tier].push({ id: 'clean-' + Date.now(), name, done: false });
+      input.value = '';
+      saveState();
+      render();
+    });
+  });
+  document.querySelectorAll('[data-clean-add-day]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.cleanAddDay;
+      const input = document.getElementById(`newCleanDayTask-${day}`);
+      const name = input.value.trim();
+      if (!name) return;
+      state.cleaning.weekly[day].push({ id: 'clean-' + Date.now(), name, done: false });
+      saveState();
+      render();
+    });
+  });
+}
+
+// Mirrors whatever's currently due from the Cleaning tracker into the same
+// "Other habits" daily list — everyday chores every day, this weekday's
+// routine on that day, and monthly/quarterly/semi-annual/annual tasks for
+// their whole active period, disappearing once checked off (or once the
+// period rolls over and resets them). Tagged 🧹 so they're easy to spot
+// alongside the 📅 Plan tasks from the Week Plan.
+function appendCleaningCards(coinEl) {
+  const addCard = (name, done, tag, onToggle) => {
+    const card = document.createElement('div');
+    card.className = 'task';
+    card.innerHTML = `
+      <div class="task-row">
+        <div class="checkbox ${done ? 'done' : ''}">${done ? '✓' : ''}</div>
+        <div class="task-name ${done ? 'done' : ''}">${name}</div>
+        <span class="plan-tag">${tag}</span>
+      </div>`;
+    card.querySelector('.checkbox').addEventListener('click', onToggle);
+    coinEl.appendChild(card);
+  };
+
+  state.cleaning.everyday.forEach(task => {
+    addCard(task.name, task.done, CLEAN_TIER_TAGS.everyday, () => toggleCleaningTask('everyday', task.id));
+  });
+  state.cleaning.weekly[currentDayKey()].forEach(task => {
+    addCard(task.name, task.done, CLEAN_TIER_TAGS.weekly, () => toggleCleaningWeeklyTask(currentDayKey(), task.id));
+  });
+  ['monthly', 'quarterly', 'semiAnnual', 'annual'].forEach(tier => {
+    state.cleaning[tier].forEach(task => {
+      addCard(task.name, task.done, CLEAN_TIER_TAGS[tier], () => toggleCleaningTask(tier, task.id));
+    });
+  });
 }
 
 // Drag a card between day columns
