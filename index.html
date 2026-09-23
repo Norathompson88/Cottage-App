@@ -117,6 +117,9 @@
   .fab-btn.fab-icon-clean::before {
     content: '🧹';
   }
+  .fab-btn.fab-icon-work::before {
+    content: '💼';
+  }
 
   .panel-overlay {
     position: fixed; inset: 0;
@@ -553,6 +556,7 @@
 
 <div class="fab-bar">
   <button class="fab-btn fab-icon" data-panel="tasks"></button>
+  <button class="fab-btn fab-icon-work" data-panel="work"></button>
   <button class="fab-btn fab-icon-clean" data-panel="cleaning"></button>
   <button class="fab-btn fab-icon-shop" data-panel="shop"></button>
 </div>
@@ -600,6 +604,23 @@
       <button id="addTaskBtn">Add task</button>
     </div>
   </div>
+</div>
+
+<div class="panel" id="panel-work">
+  <div class="panel-header"><h2>Work</h2><button class="panel-close" data-close>✕</button></div>
+  <p style="font-size:0.8rem; opacity:0.65; margin:0 0 8px;">Today's weekly block and any open follow-ups show up in your daily list, tagged 💼 / 📌 — manage everything here.</p>
+
+  <h3>Follow-ups</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Not tied to a day — stays on your daily list until you check it off</p>
+  <div id="workFollowUpList"></div>
+  <div class="add-task-form">
+    <input type="text" id="workFollowUpInput" placeholder="Who/what to follow up on">
+    <button id="workFollowUpAddBtn">Add</button>
+  </div>
+
+  <h3>Weekly</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Client work, business time, content days, learning blocks — same each week, resets each Sunday</p>
+  <div class="week-board" id="workWeekBoard"></div>
 </div>
 
 <div class="panel" id="panel-cleaning">
@@ -745,14 +766,42 @@ function loadState() {
   if (state.weekBoard.weekStart !== weekStartStr()) {
     state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() }; // new week — plan resets fresh
   }
+  if (!state.work) {
+    state.work = {
+      followUps: [],
+      weekly: emptyWeekDays(), weeklyPeriodKey: weekStartStr()
+    };
+  }
   if (!state.cleaning) {
+    let seedN = 0;
+    const mk = name => ({ id: 'clean-seed-' + (seedN++), name, done: false });
     state.cleaning = {
-      everyday: [],
-      weekly: emptyWeekDays(), weeklyPeriodKey: weekStartStr(),
-      monthly: [], monthlyPeriodKey: monthKey(),
-      quarterly: [], quarterlyPeriodKey: quarterKey(),
-      semiAnnual: [], semiAnnualPeriodKey: halfKey(),
-      annual: [], annualPeriodKey: yearKey()
+      everyday: [
+        mk('Do 1 load of laundry'), mk('Run 1 load in dishwasher'),
+        mk('Wipe kitchen counters'), mk('Take out trash if needed')
+      ],
+      weekly: {
+        sun: [mk('Wash bedsheets'), mk('Wash dog bed/blankets')],
+        mon: [mk('Clean tub'), mk('Clean bathroom sink'), mk('Clean toilet'), mk('Clean mirror'), mk('Sweep bathroom'), mk('Mop bathroom')],
+        tue: [mk('Vacuum house')],
+        wed: [mk('Clean stove')],
+        thu: [mk('Dust house'), mk('Water plants')],
+        fri: [mk('Mop floors'), mk('Plan meals')],
+        sat: [mk('Grocery shop'), mk('Clean out car')]
+      },
+      weeklyPeriodKey: weekStartStr(),
+      monthly: [mk('Deep clean fridge (inside)')],
+      monthlyPeriodKey: monthKey(),
+      quarterly: [
+        mk('Deep clean oven'), mk('Deep clean dishwasher'),
+        mk('Deep clean washer & dryer (gaskets/lint trap)'), mk('Clean indoor vents'),
+        mk('Wash windows (in/out)'), mk('Deep clean carpets/floors')
+      ],
+      quarterlyPeriodKey: quarterKey(),
+      semiAnnual: [],
+      semiAnnualPeriodKey: halfKey(),
+      annual: [mk('Clean gutters'), mk('Clean fireplace')],
+      annualPeriodKey: yearKey()
     };
   }
   state.tasks.forEach(t => {
@@ -795,6 +844,14 @@ function applyDailyRollover(state) {
     t.done = false;
     if (t.type === 'progress') t.current = 0;
   });
+
+  // Work tracker: the weekly schedule resets like Cleaning's weekly tier.
+  // Follow-ups have no cadence — they're one-off reminders that stick around
+  // (and keep showing in the daily list) until checked off or deleted.
+  if (state.work.weeklyPeriodKey !== weekStartStr()) {
+    DAYS.forEach(d => state.work.weekly[d].forEach(t => t.done = false));
+    state.work.weeklyPeriodKey = weekStartStr();
+  }
 
   // Cleaning tracker: each tier resets on its own cadence, independent of
   // the habit streak logic above (no streaks/misses for cleaning tasks —
@@ -906,6 +963,7 @@ function render() {
   renderShop();
   renderProjects();
   renderWeekBoard();
+  renderWorkPanel();
   renderCleaningPanel();
 
   const priorityEl = document.getElementById('priorityTasks');
@@ -976,6 +1034,7 @@ function render() {
   });
 
   appendTodayPlanCards(coinEl);
+  appendWorkCards(coinEl);
   appendCleaningCards(coinEl);
 
   renderManage();
@@ -1399,6 +1458,115 @@ function deleteDayTask(day, taskId) {
   state.weekBoard.days[day] = state.weekBoard.days[day].filter(t => t.id !== taskId);
   saveState();
   render();
+}
+
+// ---------- Work tracker ----------
+// Two tiers: Follow-ups (a flat, undated list — stays on the daily list
+// until checked off) and Weekly (day-assigned, same routine every week,
+// resets each Sunday) — for Coffee Republic client work, learning time,
+// and business/content blocks. Its own button/panel, same as Cleaning.
+function toggleWorkFollowUp(id) {
+  const item = state.work.followUps.find(t => t.id === id);
+  if (!item) return;
+  item.done = !item.done;
+  saveState();
+  render();
+}
+function deleteWorkFollowUp(id) {
+  state.work.followUps = state.work.followUps.filter(t => t.id !== id);
+  saveState();
+  render();
+}
+function toggleWorkWeeklyTask(day, id) {
+  const task = state.work.weekly[day].find(t => t.id === id);
+  if (!task) return;
+  task.done = !task.done;
+  saveState();
+  render();
+}
+function deleteWorkWeeklyTask(day, id) {
+  state.work.weekly[day] = state.work.weekly[day].filter(t => t.id !== id);
+  saveState();
+  render();
+}
+
+function renderWorkPanel() {
+  const list = document.getElementById('workFollowUpList');
+  list.innerHTML = '';
+  state.work.followUps.forEach(item => {
+    list.appendChild(createCleaningRow(item.name, item.done,
+      () => toggleWorkFollowUp(item.id),
+      () => deleteWorkFollowUp(item.id)));
+  });
+
+  const board = document.getElementById('workWeekBoard');
+  board.innerHTML = '';
+  DAYS.forEach(day => {
+    const col = document.createElement('div');
+    col.className = 'day-column';
+    col.innerHTML = `<h4>${DAY_LABELS[day]}</h4><div class="day-cards" id="workday-${day}"></div>
+      <div class="day-add-form">
+        <input type="text" placeholder="Add task" id="newWorkDayTask-${day}">
+        <button data-work-add-day="${day}">+</button>
+      </div>`;
+    board.appendChild(col);
+  });
+  DAYS.forEach(day => {
+    const cardsEl = document.getElementById(`workday-${day}`);
+    state.work.weekly[day].forEach(task => {
+      cardsEl.appendChild(createCleaningRow(task.name, task.done,
+        () => toggleWorkWeeklyTask(day, task.id),
+        () => deleteWorkWeeklyTask(day, task.id)));
+    });
+  });
+  document.querySelectorAll('[data-work-add-day]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const day = btn.dataset.workAddDay;
+      const input = document.getElementById(`newWorkDayTask-${day}`);
+      const name = input.value.trim();
+      if (!name) return;
+      state.work.weekly[day].push({ id: 'work-' + Date.now(), name, done: false });
+      saveState();
+      render();
+    });
+  });
+}
+
+document.getElementById('workFollowUpAddBtn').addEventListener('click', () => {
+  const input = document.getElementById('workFollowUpInput');
+  const name = input.value.trim();
+  if (!name) return;
+  state.work.followUps.push({ id: 'work-' + Date.now(), name, done: false });
+  input.value = '';
+  saveState();
+  render();
+});
+
+// Mirrors today's work schedule (and any still-open follow-ups) into the
+// same daily list as everything else — tagged 💼 Work / 📌 Follow-up.
+// A checked-off follow-up drops out of the daily list right away (it has no
+// reset cadence — it's done when it's done); the panel still keeps it,
+// struck through, until you delete it.
+function appendWorkCards(coinEl) {
+  const addCard = (name, done, tag, onToggle) => {
+    const card = document.createElement('div');
+    card.className = 'task';
+    card.innerHTML = `
+      <div class="task-row">
+        <div class="checkbox ${done ? 'done' : ''}">${done ? '✓' : ''}</div>
+        <div class="task-name ${done ? 'done' : ''}">${name}</div>
+        <span class="plan-tag">${tag}</span>
+      </div>`;
+    card.querySelector('.checkbox').addEventListener('click', onToggle);
+    coinEl.appendChild(card);
+  };
+
+  state.work.followUps.filter(item => !item.done).forEach(item => {
+    addCard(item.name, false, '📌 Follow-up', () => toggleWorkFollowUp(item.id));
+  });
+  state.work.weekly[currentDayKey()].forEach(task => {
+    addCard(task.name, task.done, '💼 Work', () => toggleWorkWeeklyTask(currentDayKey(), task.id));
+  });
 }
 
 // ---------- Cleaning tracker ----------
