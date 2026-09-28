@@ -716,7 +716,7 @@ const DAY_LABELS = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu',
 // Time-of-day tags: a light tint on the card so you can see at a glance when
 // a task is meant to happen. No tag = default gray, unchanged.
 const TOD_LABELS = { am: 'AM', md: 'MD', pm: 'PM' };
-const TOD_COLORS = { am: '#FDEFCB', md: '#FAD9B0', pm: '#E1DEF7' };
+const TOD_COLORS = { am: '#FBDDE6', md: '#FAD9B0', pm: '#E1DEF7' };
 function applyTimeOfDayTint(card, timeOfDay) {
   card.style.background = TOD_COLORS[timeOfDay] || '';
 }
@@ -773,36 +773,37 @@ function loadState() {
     };
   }
   if (!state.cleaning) {
-    let seedN = 0;
-    const mk = name => ({ id: 'clean-seed-' + (seedN++), name, done: false });
     state.cleaning = {
-      everyday: [
-        mk('Do 1 load of laundry'), mk('Run 1 load in dishwasher'),
-        mk('Wipe kitchen counters'), mk('Take out trash if needed')
-      ],
-      weekly: {
-        sun: [mk('Wash bedsheets'), mk('Wash dog bed/blankets')],
-        mon: [mk('Clean tub'), mk('Clean bathroom sink'), mk('Clean toilet'), mk('Clean mirror'), mk('Sweep bathroom'), mk('Mop bathroom')],
-        tue: [mk('Vacuum house')],
-        wed: [mk('Clean stove')],
-        thu: [mk('Dust house'), mk('Water plants')],
-        fri: [mk('Mop floors'), mk('Plan meals')],
-        sat: [mk('Grocery shop'), mk('Clean out car')]
-      },
-      weeklyPeriodKey: weekStartStr(),
-      monthly: [mk('Deep clean fridge (inside)')],
-      monthlyPeriodKey: monthKey(),
-      quarterly: [
-        mk('Deep clean oven'), mk('Deep clean dishwasher'),
-        mk('Deep clean washer & dryer (gaskets/lint trap)'), mk('Clean indoor vents'),
-        mk('Wash windows (in/out)'), mk('Deep clean carpets/floors')
-      ],
-      quarterlyPeriodKey: quarterKey(),
-      semiAnnual: [],
-      semiAnnualPeriodKey: halfKey(),
-      annual: [mk('Clean gutters'), mk('Clean fireplace')],
-      annualPeriodKey: yearKey()
+      everyday: [],
+      weekly: emptyWeekDays(), weeklyPeriodKey: weekStartStr(),
+      monthly: [], monthlyPeriodKey: monthKey(),
+      quarterly: [], quarterlyPeriodKey: quarterKey(),
+      semiAnnual: [], semiAnnualPeriodKey: halfKey(),
+      annual: [], annualPeriodKey: yearKey()
     };
+  }
+  // One-time starter schedule. Merges by name into whatever is already there
+  // (so it works whether or not the Cleaning panel was opened/edited before),
+  // and never re-adds anything after the first run.
+  if (!state.cleaningSeeded) {
+    const seedList = (arr, names) => names.forEach(name => {
+      if (!arr.some(t => t.name === name)) {
+        arr.push({ id: 'clean-seed-' + Math.random().toString(36).slice(2, 10), name, done: false });
+      }
+    });
+    const c = state.cleaning;
+    seedList(c.everyday, ['Do 1 load of laundry', 'Run 1 load in dishwasher', 'Wipe kitchen counters', 'Take out trash if needed']);
+    seedList(c.weekly.sun, ['Wash bedsheets', 'Wash dog bed/blankets']);
+    seedList(c.weekly.mon, ['Clean tub', 'Clean bathroom sink', 'Clean toilet', 'Clean mirror', 'Sweep bathroom', 'Mop bathroom']);
+    seedList(c.weekly.tue, ['Vacuum house']);
+    seedList(c.weekly.wed, ['Clean stove']);
+    seedList(c.weekly.thu, ['Dust house', 'Water plants']);
+    seedList(c.weekly.fri, ['Mop floors', 'Plan meals']);
+    seedList(c.weekly.sat, ['Grocery shop', 'Clean out car']);
+    seedList(c.monthly, ['Deep clean fridge (inside)']);
+    seedList(c.quarterly, ['Deep clean oven', 'Deep clean dishwasher', 'Deep clean washer & dryer (gaskets/lint trap)', 'Clean indoor vents', 'Wash windows (in/out)', 'Deep clean carpets/floors']);
+    seedList(c.annual, ['Clean gutters', 'Clean fireplace']);
+    state.cleaningSeeded = true;
   }
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
