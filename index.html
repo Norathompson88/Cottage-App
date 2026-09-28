@@ -409,6 +409,11 @@
     padding: 2px 3px;
     flex-shrink: 0;
   }
+  .clean-date {
+    border: 1px solid #ddd; border-radius: 6px; background: #fff;
+    font-size: 0.72rem; padding: 3px 4px; flex-shrink: 0; max-width: 118px;
+    color: var(--ink);
+  }
   .plan-tag {
     font-size: 0.68rem;
     font-weight: 600;
@@ -639,9 +644,11 @@
   <div class="week-board" id="cleanWeekBoard"></div>
 
   <h3>Monthly</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 0;">Monthly, quarterly, semi-annual &amp; annual tasks only show on your daily list from their assigned date until you check them off — set the date on each one</p>
   <div id="cleanMonthlyList"></div>
   <div class="add-task-form">
     <input type="text" id="cleanMonthlyInput" placeholder="Add a monthly task">
+    <input type="date" class="clean-date" id="cleanMonthlyDate" title="Shows on your daily list starting this date">
     <button data-clean-add="monthly">Add</button>
   </div>
 
@@ -649,6 +656,7 @@
   <div id="cleanQuarterlyList"></div>
   <div class="add-task-form">
     <input type="text" id="cleanQuarterlyInput" placeholder="Add a quarterly task">
+    <input type="date" class="clean-date" id="cleanQuarterlyDate" title="Shows on your daily list starting this date">
     <button data-clean-add="quarterly">Add</button>
   </div>
 
@@ -656,6 +664,7 @@
   <div id="cleanSemiAnnualList"></div>
   <div class="add-task-form">
     <input type="text" id="cleanSemiAnnualInput" placeholder="Add a semi-annual task">
+    <input type="date" class="clean-date" id="cleanSemiAnnualDate" title="Shows on your daily list starting this date">
     <button data-clean-add="semiAnnual">Add</button>
   </div>
 
@@ -663,6 +672,7 @@
   <div id="cleanAnnualList"></div>
   <div class="add-task-form">
     <input type="text" id="cleanAnnualInput" placeholder="Add an annual task">
+    <input type="date" class="clean-date" id="cleanAnnualDate" title="Shows on your daily list starting this date">
     <button data-clean-add="annual">Add</button>
   </div>
 </div>
@@ -805,6 +815,26 @@ function loadState() {
     seedList(c.annual, ['Clean gutters', 'Clean fireplace']);
     state.cleaningSeeded = true;
   }
+  // One-time: give the starter dated tasks a spread-out due date so they
+  // don't all land on the daily list at once. Only fills tasks that have no
+  // date yet; anything you set yourself is left alone.
+  if (!state.cleaningDatesSeeded) {
+    const defaults = {
+      monthly: { 'Deep clean fridge (inside)': '2026-10-03' },
+      quarterly: {
+        'Deep clean oven': '2026-10-10', 'Deep clean dishwasher': '2026-10-24',
+        'Deep clean washer & dryer (gaskets/lint trap)': '2026-11-07', 'Clean indoor vents': '2026-11-21',
+        'Wash windows (in/out)': '2026-12-05', 'Deep clean carpets/floors': '2026-12-19'
+      },
+      annual: { 'Clean gutters': '2026-10-17', 'Clean fireplace': '2026-11-14' }
+    };
+    Object.keys(defaults).forEach(tier => {
+      state.cleaning[tier].forEach(t => {
+        if (!t.dueDate && defaults[tier][t.name]) t.dueDate = defaults[tier][t.name];
+      });
+    });
+    state.cleaningDatesSeeded = true;
+  }
   state.tasks.forEach(t => {
     if (t.streak === undefined) t.streak = 0;
     if (t.longestStreak === undefined) t.longestStreak = 0;
@@ -864,19 +894,19 @@ function applyDailyRollover(state) {
     state.cleaning.weeklyPeriodKey = weekStartStr();
   }
   if (state.cleaning.monthlyPeriodKey !== monthKey()) {
-    state.cleaning.monthly.forEach(t => t.done = false);
+    rollCleaningTier('monthly', 1);
     state.cleaning.monthlyPeriodKey = monthKey();
   }
   if (state.cleaning.quarterlyPeriodKey !== quarterKey()) {
-    state.cleaning.quarterly.forEach(t => t.done = false);
+    rollCleaningTier('quarterly', 3);
     state.cleaning.quarterlyPeriodKey = quarterKey();
   }
   if (state.cleaning.semiAnnualPeriodKey !== halfKey()) {
-    state.cleaning.semiAnnual.forEach(t => t.done = false);
+    rollCleaningTier('semiAnnual', 6);
     state.cleaning.semiAnnualPeriodKey = halfKey();
   }
   if (state.cleaning.annualPeriodKey !== yearKey()) {
-    state.cleaning.annual.forEach(t => t.done = false);
+    rollCleaningTier('annual', 12);
     state.cleaning.annualPeriodKey = yearKey();
   }
 
@@ -1591,10 +1621,55 @@ const CLEAN_TIER_TAGS = {
   quarterly: '🧹 Quarterly', semiAnnual: '🧹 Semi-annual', annual: '🧹 Annual'
 };
 
+// --- dated tiers (monthly / quarterly / semi-annual / annual) ---
+// Each of these tasks has a dueDate (YYYY-MM-DD). It only appears on the
+// daily list from that date until it's checked off (a task checked off today
+// stays visible, checked, for the rest of today). When its period rolls over
+// and it was completed, the date moves forward one period; if it was NOT
+// completed it keeps its old date, so it stays on the list as overdue.
+function pad2(n) { return String(n).padStart(2, '0'); }
+function isoToday() {
+  const d = new Date();
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+}
+function addMonthsISO(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1 + n, 1);
+  const last = new Date(dt.getFullYear(), dt.getMonth() + 1, 0).getDate();
+  dt.setDate(Math.min(d, last));
+  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+}
+function periodStartISO(months) {
+  const now = new Date();
+  const m = now.getMonth();
+  const startMonth = months === 1 ? m : months === 3 ? Math.floor(m / 3) * 3 : months === 6 ? (m < 6 ? 0 : 6) : 0;
+  return now.getFullYear() + '-' + pad2(startMonth + 1) + '-01';
+}
+function rollCleaningTier(tier, months) {
+  const start = periodStartISO(months);
+  state.cleaning[tier].forEach(t => {
+    if (t.done && t.dueDate) {
+      let next = t.dueDate;
+      do { next = addMonthsISO(next, months); } while (next < start);
+      t.dueDate = next;
+    }
+    t.done = false;
+    t.doneAt = null;
+  });
+}
+function setCleaningDueDate(tier, taskId, value) {
+  const task = state.cleaning[tier].find(t => t.id === taskId);
+  if (!task) return;
+  task.dueDate = value || null;
+  saveState();
+  render();
+}
+
 function toggleCleaningTask(tier, taskId) {
   const task = state.cleaning[tier].find(t => t.id === taskId);
   if (!task) return;
   task.done = !task.done;
+  task.doneAt = task.done ? isoToday() : null;
   saveState();
   render();
 }
@@ -1617,15 +1692,17 @@ function deleteCleaningWeeklyTask(day, taskId) {
 }
 
 // One row inside the Cleaning panel itself (flat lists + weekly day columns).
-function createCleaningRow(name, done, onToggle, onDelete) {
+function createCleaningRow(name, done, onToggle, onDelete, dateOpts) {
   const row = document.createElement('div');
   row.className = 'day-card';
   row.innerHTML = `
     <div class="checkbox ${done ? 'done' : ''}">${done ? '✓' : ''}</div>
     <div style="flex:1; min-width:0;"><span class="task-name ${done ? 'done' : ''}">${name}</span></div>
+    ${dateOpts ? `<input type="date" class="clean-date" value="${dateOpts.value || ''}">` : ''}
     <button class="day-card-del">✕</button>`;
   row.querySelector('.checkbox').addEventListener('click', onToggle);
   row.querySelector('.day-card-del').addEventListener('click', onDelete);
+  if (dateOpts) row.querySelector('.clean-date').addEventListener('change', e => dateOpts.onChange(e.target.value));
   return row;
 }
 
@@ -1634,9 +1711,11 @@ function renderCleaningPanel() {
     const list = document.getElementById(CLEAN_TIER_LIST_IDS[tier]);
     list.innerHTML = '';
     state.cleaning[tier].forEach(task => {
+      const dated = tier !== 'everyday';
       list.appendChild(createCleaningRow(task.name, task.done,
         () => toggleCleaningTask(tier, task.id),
-        () => deleteCleaningTask(tier, task.id)));
+        () => deleteCleaningTask(tier, task.id),
+        dated ? { value: task.dueDate, onChange: v => setCleaningDueDate(tier, task.id, v) } : null));
     });
   });
 
@@ -1667,8 +1746,10 @@ function renderCleaningPanel() {
       const input = document.getElementById(CLEAN_TIER_INPUT_IDS[tier]);
       const name = input.value.trim();
       if (!name) return;
-      state.cleaning[tier].push({ id: 'clean-' + Date.now(), name, done: false });
+      const dateEl = document.getElementById(CLEAN_TIER_INPUT_IDS[tier].replace('Input', 'Date'));
+      state.cleaning[tier].push({ id: 'clean-' + Date.now(), name, done: false, dueDate: dateEl ? (dateEl.value || null) : null, doneAt: null });
       input.value = '';
+      if (dateEl) dateEl.value = '';
       saveState();
       render();
     });
@@ -1688,9 +1769,8 @@ function renderCleaningPanel() {
 
 // Mirrors whatever's currently due from the Cleaning tracker into the same
 // "Other habits" daily list — everyday chores every day, this weekday's
-// routine on that day, and monthly/quarterly/semi-annual/annual tasks for
-// their whole active period, disappearing once checked off (or once the
-// period rolls over and resets them). Tagged 🧹 so they're easy to spot
+// routine on that day, and dated monthly/quarterly/semi-annual/annual tasks
+// from their assigned date until checked off. Tagged 🧹 so they're easy to spot
 // alongside the 📅 Plan tasks from the Week Plan.
 function appendCleaningCards(coinEl) {
   const addCard = (name, done, tag, onToggle) => {
@@ -1712,10 +1792,15 @@ function appendCleaningCards(coinEl) {
   state.cleaning.weekly[currentDayKey()].forEach(task => {
     addCard(task.name, task.done, CLEAN_TIER_TAGS.weekly, () => toggleCleaningWeeklyTask(currentDayKey(), task.id));
   });
+  // Dated tiers: only once their assigned date has arrived, and only until
+  // checked off (a task done today stays visible, checked, for today).
+  const today = isoToday();
   ['monthly', 'quarterly', 'semiAnnual', 'annual'].forEach(tier => {
-    state.cleaning[tier].forEach(task => {
-      addCard(task.name, task.done, CLEAN_TIER_TAGS[tier], () => toggleCleaningTask(tier, task.id));
-    });
+    state.cleaning[tier]
+      .filter(task => task.dueDate && task.dueDate <= today && (!task.done || task.doneAt === today))
+      .forEach(task => {
+        addCard(task.name, task.done, CLEAN_TIER_TAGS[tier], () => toggleCleaningTask(tier, task.id));
+      });
   });
 }
 
