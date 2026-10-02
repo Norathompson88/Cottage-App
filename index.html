@@ -894,19 +894,19 @@ function applyDailyRollover(state) {
     state.cleaning.weeklyPeriodKey = weekStartStr();
   }
   if (state.cleaning.monthlyPeriodKey !== monthKey()) {
-    rollCleaningTier('monthly', 1);
+    rollCleaningTier(state, 'monthly', 1);
     state.cleaning.monthlyPeriodKey = monthKey();
   }
   if (state.cleaning.quarterlyPeriodKey !== quarterKey()) {
-    rollCleaningTier('quarterly', 3);
+    rollCleaningTier(state, 'quarterly', 3);
     state.cleaning.quarterlyPeriodKey = quarterKey();
   }
   if (state.cleaning.semiAnnualPeriodKey !== halfKey()) {
-    rollCleaningTier('semiAnnual', 6);
+    rollCleaningTier(state, 'semiAnnual', 6);
     state.cleaning.semiAnnualPeriodKey = halfKey();
   }
   if (state.cleaning.annualPeriodKey !== yearKey()) {
-    rollCleaningTier('annual', 12);
+    rollCleaningTier(state, 'annual', 12);
     state.cleaning.annualPeriodKey = yearKey();
   }
 
@@ -1645,7 +1645,7 @@ function periodStartISO(months) {
   const startMonth = months === 1 ? m : months === 3 ? Math.floor(m / 3) * 3 : months === 6 ? (m < 6 ? 0 : 6) : 0;
   return now.getFullYear() + '-' + pad2(startMonth + 1) + '-01';
 }
-function rollCleaningTier(tier, months) {
+function rollCleaningTier(state, tier, months) {
   const start = periodStartISO(months);
   state.cleaning[tier].forEach(t => {
     if (t.done && t.dueDate) {
