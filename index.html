@@ -120,6 +120,9 @@
   .fab-btn.fab-icon-work::before {
     content: '💼';
   }
+  .fab-btn.fab-icon-books::before {
+    content: '📚';
+  }
 
   .panel-overlay {
     position: fixed; inset: 0;
@@ -409,6 +412,51 @@
     padding: 2px 3px;
     flex-shrink: 0;
   }
+  .day-edit-card input[type="number"], .day-edit-card input[type="date"] {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.95rem;
+    margin-bottom: 14px;
+    background: #fff;
+    color: var(--ink);
+  }
+  .book-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 2px solid transparent;
+  }
+  .book-card.active { background: #eef5e8; border-color: var(--accent); }
+  .book-top { display: flex; align-items: center; gap: 8px; }
+  .book-pos { font-size: 0.75rem; opacity: 0.5; width: 18px; text-align: center; flex-shrink: 0; }
+  .book-title { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 600; overflow-wrap: anywhere; }
+  .book-author { display: block; font-size: 0.75rem; opacity: 0.6; font-weight: 400; }
+  .book-badge {
+    font-size: 0.68rem; font-weight: 700; color: #fff; background: var(--accent-dark);
+    border-radius: 6px; padding: 2px 6px; white-space: nowrap; flex-shrink: 0;
+  }
+  .book-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .book-btn {
+    border: none; background: rgba(0,0,0,0.07); color: var(--ink);
+    border-radius: 8px; padding: 6px 10px; font-size: 0.78rem;
+  }
+  .book-btn.primary { background: var(--accent); color: #fff; }
+  .book-btn.icon { padding: 5px 8px; opacity: 0.75; }
+  .book-btn:disabled { opacity: 0.25; }
+  .book-bar { height: 12px; background: rgba(0,0,0,0.1); border-radius: 6px; overflow: hidden; margin-top: 8px; }
+  .book-bar-fill { height: 100%; background: var(--accent); border-radius: 6px; transition: width 0.3s; }
+  .book-stats { display: flex; justify-content: space-between; font-size: 0.78rem; margin-top: 4px; }
+  .book-pace { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; }
+  .book-progress-form { display: flex; gap: 6px; margin-top: 8px; align-items: center; }
+  .book-progress-form input {
+    width: 90px; border: 1px solid #ddd; border-radius: 6px; padding: 6px; font-size: 0.85rem;
+  }
+  .book-empty { font-size: 0.8rem; opacity: 0.55; margin: 4px 0 10px; }
   .clean-date {
     border: 1px solid #ddd; border-radius: 6px; background: #fff;
     font-size: 0.72rem; padding: 3px 4px; flex-shrink: 0; max-width: 118px;
@@ -563,6 +611,7 @@
   <button class="fab-btn fab-icon" data-panel="tasks"></button>
   <button class="fab-btn fab-icon-work" data-panel="work"></button>
   <button class="fab-btn fab-icon-clean" data-panel="cleaning"></button>
+  <button class="fab-btn fab-icon-books" data-panel="books"></button>
   <button class="fab-btn fab-icon-shop" data-panel="shop"></button>
 </div>
 
@@ -677,6 +726,23 @@
   </div>
 </div>
 
+<div class="panel" id="panel-books">
+  <div class="panel-header"><h2>Books</h2><button class="panel-close" data-close>✕</button></div>
+
+  <div class="add-task-form">
+    <input type="text" id="bookTitleInput" placeholder="Book title">
+    <input type="text" id="bookAuthorInput" placeholder="Author (optional)">
+    <button id="bookAddBtn">Add to queue</button>
+  </div>
+
+  <h3>Reading queue</h3>
+  <p style="font-size:0.8rem; opacity:0.65; margin:-4px 0 6px;">In the order you want to read them — use ▲ ▼ to reorder. Tap Start when you begin a book.</p>
+  <div id="booksQueueList"></div>
+
+  <h3>Finished <span id="booksFinishedCount" style="opacity:0.55; font-weight:400;"></span></h3>
+  <div id="booksFinishedList"></div>
+</div>
+
 <div class="panel" id="panel-shop">
   <div class="panel-header"><h2>Shop</h2><button class="panel-close" data-close>✕</button></div>
   <div id="shopItems"></div>
@@ -776,6 +842,7 @@ function loadState() {
   if (state.weekBoard.weekStart !== weekStartStr()) {
     state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() }; // new week — plan resets fresh
   }
+  if (!state.books) state.books = { queue: [], finished: [] };
   if (!state.work) {
     state.work = {
       followUps: [],
@@ -996,6 +1063,7 @@ function render() {
   renderWeekBoard();
   renderWorkPanel();
   renderCleaningPanel();
+  renderBooksPanel();
 
   const priorityEl = document.getElementById('priorityTasks');
   const coinEl = document.getElementById('coinTasks');
@@ -1599,6 +1667,264 @@ function appendWorkCards(coinEl) {
     addCard(task.name, task.done, '💼 Work', () => toggleWorkWeeklyTask(currentDayKey(), task.id));
   });
 }
+
+// ---------- Book tracker ----------
+// state.books.queue: books you want to read, in reading order. A book with
+// status 'reading' is "active" (highlighted, shows a progress bar); 'queued'
+// ones wait their turn. state.books.finished: completed books with a
+// manually-entered finish date — there is deliberately no delete for these.
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+function addDaysISO(iso, n) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return dt.getFullYear() + '-' + pad2(dt.getMonth() + 1) + '-' + pad2(dt.getDate());
+}
+function daysBetweenISO(a, b) {
+  const [ay, am, ad] = a.split('-').map(Number);
+  const [by, bm, bd] = b.split('-').map(Number);
+  return Math.round((new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad)) / 86400000);
+}
+function prettyISO(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Small centered sheet (same look as the other edit sheets). onSave gets the
+// overlay and returns an error string to keep it open, or null to save+close.
+function openBookSheet(title, bodyHtml, onSave) {
+  const overlay = document.createElement('div');
+  overlay.className = 'day-edit-overlay';
+  overlay.innerHTML = `
+    <div class="day-edit-card">
+      <h3>${title}</h3>
+      ${bodyHtml}
+      <div class="book-sheet-err" style="color:#b5473d; font-size:0.78rem; min-height:1em; margin-bottom:8px;"></div>
+      <div class="day-edit-actions">
+        <button type="button" class="day-edit-cancel">Cancel</button>
+        <button type="button" class="day-edit-save">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+  overlay.querySelector('.day-edit-cancel').addEventListener('click', close);
+  overlay.querySelector('.day-edit-save').addEventListener('click', () => {
+    const err = onSave(overlay);
+    if (err) { overlay.querySelector('.book-sheet-err').textContent = err; return; }
+    close();
+    saveState();
+    render();
+  });
+}
+
+function bookPlanFieldsHtml(book) {
+  return `
+    <div class="day-edit-label">Total pages</div>
+    <input type="number" id="bookTotalPages" min="1" inputmode="numeric" value="${book.totalPages || ''}">
+    <div class="day-edit-label">Days to finish it in</div>
+    <input type="number" id="bookGoalDays" min="1" inputmode="numeric" value="${book.goalDays || ''}">`;
+}
+function readBookPlanFields(overlay) {
+  const totalPages = parseInt(overlay.querySelector('#bookTotalPages').value, 10);
+  const goalDays = parseInt(overlay.querySelector('#bookGoalDays').value, 10);
+  if (!(totalPages >= 1)) return { error: 'Enter how many pages the book has.' };
+  if (!(goalDays >= 1)) return { error: 'Enter how many days you want to finish it in.' };
+  return { totalPages, goalDays };
+}
+
+function startBook(id) {
+  const book = state.books.queue.find(b => b.id === id);
+  if (!book) return;
+  openBookSheet('Start “' + escHtml(book.title) + '”', bookPlanFieldsHtml(book), overlay => {
+    const v = readBookPlanFields(overlay);
+    if (v.error) return v.error;
+    book.status = 'reading';
+    book.totalPages = v.totalPages;
+    book.goalDays = v.goalDays;
+    book.startDate = isoToday();
+    book.pagesRead = 0;
+    return null;
+  });
+}
+function editBookPlan(id) {
+  const book = state.books.queue.find(b => b.id === id);
+  if (!book) return;
+  openBookSheet('Edit plan', bookPlanFieldsHtml(book), overlay => {
+    const v = readBookPlanFields(overlay);
+    if (v.error) return v.error;
+    book.totalPages = v.totalPages;
+    book.goalDays = v.goalDays;
+    book.pagesRead = Math.min(book.pagesRead || 0, v.totalPages);
+    return null;
+  });
+}
+function setBookPages(id, value) {
+  const book = state.books.queue.find(b => b.id === id);
+  if (!book || book.status !== 'reading') return;
+  const n = parseInt(value, 10);
+  if (isNaN(n) || n < 0) return;
+  book.pagesRead = Math.min(n, book.totalPages);
+  saveState();
+  render();
+}
+function finishBook(id) {
+  const book = state.books.queue.find(b => b.id === id);
+  if (!book) return;
+  openBookSheet('Finished “' + escHtml(book.title) + '”?',
+    `<div class="day-edit-label">Date you finished</div>
+     <input type="date" id="bookFinishDate">`,
+    overlay => {
+      const date = overlay.querySelector('#bookFinishDate').value;
+      if (!date) return 'Pick the date you finished it.';
+      state.books.queue = state.books.queue.filter(b => b.id !== id);
+      state.books.finished.push({
+        id: book.id, title: book.title, author: book.author || '',
+        totalPages: book.totalPages || null, finishedDate: date
+      });
+      return null;
+    });
+}
+function unstartBook(id) {
+  const book = state.books.queue.find(b => b.id === id);
+  if (!book) return;
+  book.status = 'queued';
+  book.pagesRead = 0;
+  book.startDate = null;
+  saveState();
+  render();
+}
+function moveBook(id, dir) {
+  const q = state.books.queue;
+  const i = q.findIndex(b => b.id === id);
+  const j = i + dir;
+  if (i < 0 || j < 0 || j >= q.length) return;
+  [q[i], q[j]] = [q[j], q[i]];
+  saveState();
+  render();
+}
+function removeQueuedBook(id) {
+  state.books.queue = state.books.queue.filter(b => b.id !== id);
+  saveState();
+  render();
+}
+function setFinishedDate(id, value) {
+  const book = state.books.finished.find(b => b.id === id);
+  if (!book || !value) return;
+  book.finishedDate = value;
+  saveState();
+  render();
+}
+
+function renderBooksPanel() {
+  const queueEl = document.getElementById('booksQueueList');
+  const finishedEl = document.getElementById('booksFinishedList');
+  queueEl.innerHTML = '';
+  finishedEl.innerHTML = '';
+  const q = state.books.queue;
+
+  if (!q.length) {
+    queueEl.innerHTML = '<div class="book-empty">Nothing in your queue yet — add a book above.</div>';
+  }
+  q.forEach((book, idx) => {
+    const reading = book.status === 'reading';
+    const card = document.createElement('div');
+    card.className = 'book-card' + (reading ? ' active' : '');
+    const titleHtml = `<span class="book-title">${escHtml(book.title)}${book.author ? `<span class="book-author">${escHtml(book.author)}</span>` : ''}</span>`;
+    const moveBtns = `
+      <button class="book-btn icon" data-act="up" ${idx === 0 ? 'disabled' : ''}>▲</button>
+      <button class="book-btn icon" data-act="down" ${idx === q.length - 1 ? 'disabled' : ''}>▼</button>`;
+
+    if (!reading) {
+      card.innerHTML = `
+        <div class="book-top">
+          <span class="book-pos">${idx + 1}</span>
+          ${titleHtml}
+          ${moveBtns}
+        </div>
+        <div class="book-actions">
+          <button class="book-btn primary" data-act="start">Start reading</button>
+          <button class="book-btn icon" data-act="remove" title="Remove from queue">✕</button>
+        </div>`;
+    } else {
+      const total = book.totalPages || 1;
+      const read = Math.min(book.pagesRead || 0, total);
+      const pct = Math.round((read / total) * 100);
+      const left = total - read;
+      const elapsed = Math.max(0, daysBetweenISO(book.startDate || isoToday(), isoToday()));
+      const daysLeft = Math.max(0, (book.goalDays || 1) - elapsed);
+      const targetDate = addDaysISO(book.startDate || isoToday(), book.goalDays || 1);
+      let paceLine;
+      if (left === 0) paceLine = 'You\'ve reached the last page — tap Finish!';
+      else if (daysLeft > 0) paceLine = `~${Math.ceil(left / daysLeft)} pages/day to finish by ${prettyISO(targetDate)} (${daysLeft} day${daysLeft === 1 ? '' : 's'} left)`;
+      else paceLine = `Goal date (${prettyISO(targetDate)}) has passed — ${left} pages to go`;
+      card.innerHTML = `
+        <div class="book-top">
+          <span class="book-badge">📖 Reading</span>
+          ${titleHtml}
+          ${moveBtns}
+        </div>
+        <div class="book-bar"><div class="book-bar-fill" style="width:${pct}%"></div></div>
+        <div class="book-stats"><span>${read} / ${total} pages · ${pct}%</span><span>${left} left</span></div>
+        <div class="book-pace">${paceLine}</div>
+        <div class="book-progress-form">
+          <input type="number" min="0" max="${total}" inputmode="numeric" placeholder="Pages read" value="${read}">
+          <button class="book-btn primary" data-act="update">Update</button>
+        </div>
+        <div class="book-actions">
+          <button class="book-btn ${left === 0 ? 'primary' : ''}" data-act="finish">✓ Finish</button>
+          <button class="book-btn" data-act="edit">✎ Plan</button>
+          <button class="book-btn" data-act="unstart">Back to queue</button>
+        </div>`;
+    }
+
+    const on = (act, fn) => { const el = card.querySelector(`[data-act="${act}"]`); if (el) el.addEventListener('click', fn); };
+    on('up', () => moveBook(book.id, -1));
+    on('down', () => moveBook(book.id, 1));
+    on('start', () => startBook(book.id));
+    on('remove', () => removeQueuedBook(book.id));
+    on('finish', () => finishBook(book.id));
+    on('edit', () => editBookPlan(book.id));
+    on('unstart', () => unstartBook(book.id));
+    on('update', () => setBookPages(book.id, card.querySelector('.book-progress-form input').value));
+    queueEl.appendChild(card);
+  });
+
+  const fin = state.books.finished.slice().sort((a, b) => (b.finishedDate || '').localeCompare(a.finishedDate || ''));
+  document.getElementById('booksFinishedCount').textContent = fin.length ? `(${fin.length})` : '';
+  if (!fin.length) {
+    finishedEl.innerHTML = '<div class="book-empty">Books you finish will live here for good.</div>';
+  }
+  fin.forEach(book => {
+    const card = document.createElement('div');
+    card.className = 'book-card';
+    card.innerHTML = `
+      <div class="book-top">
+        <span class="book-pos">✓</span>
+        <span class="book-title">${escHtml(book.title)}${book.author ? `<span class="book-author">${escHtml(book.author)}</span>` : ''}${book.totalPages ? `<span class="book-author">${book.totalPages} pages</span>` : ''}</span>
+        <input type="date" class="clean-date" value="${book.finishedDate || ''}" title="Date finished">
+      </div>`;
+    card.querySelector('.clean-date').addEventListener('change', e => setFinishedDate(book.id, e.target.value));
+    finishedEl.appendChild(card);
+  });
+}
+
+document.getElementById('bookAddBtn').addEventListener('click', () => {
+  const titleEl = document.getElementById('bookTitleInput');
+  const authorEl = document.getElementById('bookAuthorInput');
+  const title = titleEl.value.trim();
+  if (!title) return;
+  state.books.queue.push({
+    id: 'book-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6),
+    title, author: authorEl.value.trim(), status: 'queued'
+  });
+  titleEl.value = '';
+  authorEl.value = '';
+  saveState();
+  render();
+});
 
 // ---------- Cleaning tracker ----------
 // A separate schedule (its own fab button + panel) rather than a section
