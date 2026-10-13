@@ -843,6 +843,50 @@ function loadState() {
     state.weekBoard = { weekStart: weekStartStr(), days: emptyWeekDays() }; // new week — plan resets fresh
   }
   if (!state.books) state.books = { queue: [], finished: [] };
+  // One-time starter reading list (merged by title, so it never duplicates
+  // anything already in your queue or finished list, and never re-adds a book
+  // you later remove).
+  if (!state.booksSeeded) {
+    const starter = [
+      ['Twelve Hours\' Sleep by Twelve Weeks Old', 'Suzy Giordano with Lisa Abidin'],
+      ['The No-Cry Sleep Solution', 'Elizabeth Pantley'],
+      ['The No-Cry Sleep Solution for Toddlers and Preschoolers', 'Elizabeth Pantley'],
+      ['The No-Cry Potty Training Solution', 'Elizabeth Pantley'],
+      ['On Becoming Babywise', 'Gary Ezzo & Robert Bucknam'],
+      ['Brain-Body Parenting', 'Mona Delahooke, PhD'],
+      ['9 Months Is Not Enough', 'Alexandria DeVito, MS, CNS'],
+      ['Your Pregnancy and Childbirth: Month to Month (7th ed.)', 'ACOG'],
+      ['The 100 Healthiest Foods to Eat During Pregnancy', 'Jonny Bowden'],
+      ['How Emotions Are Made', 'Lisa Feldman Barrett'],
+      ['The Upward Spiral (2nd ed.)', 'Alex Korb, PhD'],
+      ['Attachment Theory', 'Thais Gibson'],
+      ['The Queen\'s Code', 'Alison A. Armstrong'],
+      ['The Seven Decisions', 'Andy Andrews'],
+      ['The Subtle Art of Not Giving a F*ck', 'Mark Manson'],
+      ['Dare to Lead', 'Brené Brown'],
+      ['The 7 Habits of Highly Effective People', 'Stephen R. Covey'],
+      ['Contagious', 'Jonah Berger'],
+      ['Made to Stick', 'Chip Heath & Dan Heath'],
+      ['Hooked', 'Nir Eyal with Ryan Hoover'],
+      ['One Million Followers', 'Brendan Kane'],
+      ['Write a Must-Read', 'AJ Harper'],
+      ['Published.', 'Chandler Bolt'],
+      ['Traction', 'Gino Wickman'],
+      ['Rocket Fuel', 'Gino Wickman & Mark C. Winters'],
+      ['The Five Dysfunctions of a Team', 'Patrick Lencioni'],
+      ['The 21 Irrefutable Laws of Leadership (25th Anniv. ed.)', 'John C. Maxwell'],
+      ['Developing the Leader Within You 2.0', 'John C. Maxwell'],
+      ['Spiritually Intelligent Leadership', 'Yosi Amram, PhD'],
+      ['Business Is War (Billionaire vs Millionaire Thinking)', 'JT Foxx'],
+      ['Claude Design Playbook', '']
+    ];
+    const have = new Set(state.books.queue.concat(state.books.finished).map(b => b.title.trim().toLowerCase()));
+    starter.forEach(([title, author], i) => {
+      if (have.has(title.toLowerCase())) return;
+      state.books.queue.push({ id: 'book-seed-' + i, title, author, status: 'queued' });
+    });
+    state.booksSeeded = true;
+  }
   if (!state.work) {
     state.work = {
       followUps: [],
